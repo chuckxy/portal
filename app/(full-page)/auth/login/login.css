@@ -1,0 +1,230 @@
+.login-page {
+    min-height: 95vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-ground);
+    padding: 1rem;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 1200px;
+}
+
+.login-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    background: var(--surface-card);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+@media (min-width: 992px) {
+    .login-content {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Left Side - Info Section */
+.login-info-section {
+    background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-700) 100%);
+    color: white;
+    padding: 3rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.info-content {
+    max-width: 500px;
+}
+
+.logo-section {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.logo-section h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: white;
+}
+
+.logo-section p {
+    font-size: 1.1rem;
+    opacity: 0.95;
+    margin: 0;
+}
+
+.features-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    margin-bottom: 3rem;
+}
+
+.feature-item {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.feature-item i {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 1rem;
+    border-radius: 0.75rem;
+    backdrop-filter: blur(10px);
+}
+
+.feature-item h4 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: white;
+}
+
+.feature-item p {
+    font-size: 0.95rem;
+    margin: 0;
+    opacity: 0.9;
+    line-height: 1.6;
+}
+
+.demo-info {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    backdrop-filter: blur(10px);
+}
+
+.demo-info h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    color: white;
+}
+
+.demo-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.demo-btn {
+    width: 100%;
+    justify-content: center;
+    background: transparent !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    color: white !important;
+}
+
+.demo-btn:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Right Side - Form Section */
+.login-form-section {
+    padding: 3rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.form-wrapper {
+    width: 100%;
+    max-width: 450px;
+}
+
+.form-header {
+    margin-bottom: 2rem;
+}
+
+.form-header h1 {
+    margin-bottom: 0.5rem;
+}
+
+.login-form {
+    width: 100%;
+}
+
+.field {
+    margin-bottom: 1.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 991px) {
+    .login-info-section {
+        padding: 2rem 1.5rem;
+    }
+
+    .login-form-section {
+        padding: 2rem 1.5rem;
+    }
+
+    .logo-section h2 {
+        font-size: 2rem;
+    }
+
+    .features-list {
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .feature-item {
+        gap: 1rem;
+    }
+
+    .feature-item i {
+        padding: 0.75rem;
+        font-size: 1.5rem !important;
+    }
+
+    .feature-item h4 {
+        font-size: 1.1rem;
+    }
+
+    .feature-item p {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 575px) {
+    .login-page {
+        padding: 0.5rem;
+    }
+
+    .login-content {
+        gap: 0;
+        border-radius: 0.5rem;
+    }
+
+    .login-info-section {
+        padding: 1.5rem 1rem;
+    }
+
+    .login-form-section {
+        padding: 1.5rem 1rem;
+    }
+
+    .logo-section {
+        margin-bottom: 2rem;
+    }
+
+    .logo-section h2 {
+        font-size: 1.75rem;
+    }
+
+    .logo-section p {
+        font-size: 1rem;
+    }
+
+    .form-header h1 {
+        font-size: 2rem;
+    }
+}

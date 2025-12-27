@@ -1,0 +1,13 @@
+$primaryColor: #eee500;
+$primaryLightColor: scale-color($primaryColor, $lightness: 60%) !default;
+$primaryDarkColor: scale-color($primaryColor, $lightness: -10%) !default;
+$primaryDarkerColor: scale-color($primaryColor, $lightness: -20%) !default;
+$primaryTextColor: #0a061a;
+$primary500: #eee500 !default;
+
+$highlightBg: $primaryColor;
+$highlightTextColor: $primaryTextColor;
+
+@import '../_variables';
+@import '../../theme-base/_components';
+@import '../_extensions';
