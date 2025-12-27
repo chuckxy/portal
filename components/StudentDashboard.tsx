@@ -16,6 +16,7 @@ import { Panel } from 'primereact/panel';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { Timeline } from 'primereact/timeline';
 import { useRouter } from 'next/navigation';
+import AcademicTranscript from './AcademicTranscript';
 
 interface StudentDashboardProps {
     studentId: string;
@@ -37,6 +38,7 @@ export default function StudentDashboard({ studentId }: StudentDashboardProps) {
     const [error, setError] = useState<string | null>(null);
     const [selectedExamScore, setSelectedExamScore] = useState<any>(null);
     const [showDetailDialog, setShowDetailDialog] = useState(false);
+    const [activeTabIndex, setActiveTabIndex] = useState(0);
     const router = useRouter();
 
     useEffect(() => {
@@ -228,227 +230,242 @@ export default function StudentDashboard({ studentId }: StudentDashboardProps) {
                 </Card>
             </div>
 
-            {/* Statistics Cards */}
-            <div className="col-12 lg:col-3 md:col-6">
-                <Card className="surface-card shadow-2">
-                    <div className="flex align-items-center gap-3">
-                        <div className="flex align-items-center justify-content-center bg-blue-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
-                            <i className="pi pi-chart-line text-blue-600 text-2xl"></i>
-                        </div>
-                        <div>
-                            <div className="text-500 text-sm mb-1">Overall Average</div>
-                            <div className="text-900 font-bold text-2xl">{dashboardData.performance.overallAverage}%</div>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            <div className="col-12 lg:col-3 md:col-6">
-                <Card className="surface-card shadow-2">
-                    <div className="flex align-items-center gap-3">
-                        <div className="flex align-items-center justify-content-center bg-green-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
-                            <i className="pi pi-check-circle text-green-600 text-2xl"></i>
-                        </div>
-                        <div>
-                            <div className="text-500 text-sm mb-1">Attendance Rate</div>
-                            <div className="text-900 font-bold text-2xl">{dashboardData.attendance.attendanceRate}%</div>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            <div className="col-12 lg:col-3 md:col-6">
-                <Card className="surface-card shadow-2">
-                    <div className="flex align-items-center gap-3">
-                        <div className="flex align-items-center justify-content-center bg-purple-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
-                            <i className="pi pi-book text-purple-600 text-2xl"></i>
-                        </div>
-                        <div>
-                            <div className="text-500 text-sm mb-1">Subjects</div>
-                            <div className="text-900 font-bold text-2xl">{dashboardData.academicInfo.subjects.length}</div>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            <div className="col-12 lg:col-3 md:col-6">
-                <Card className="surface-card shadow-2">
-                    <div className="flex align-items-center gap-3">
-                        <div className="flex align-items-center justify-content-center bg-orange-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
-                            <i className="pi pi-file text-orange-600 text-2xl"></i>
-                        </div>
-                        <div>
-                            <div className="text-500 text-sm mb-1">Exam Records</div>
-                            <div className="text-900 font-bold text-2xl">{dashboardData.performance.totalExamsRecorded}</div>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            {/* Current Term Performance */}
-            {dashboardData.performance.currentTermScore && (
-                <div className="col-12 lg:col-6">
-                    <Card title="Current Term Performance" subTitle={`${dashboardData.academicInfo.currentAcademicYear} - Term ${dashboardData.academicInfo.currentAcademicTerm}`}>
+            {/* Tab Navigation */}
+            <div className="col-12">
+                <TabView activeIndex={activeTabIndex} onTabChange={(e) => setActiveTabIndex(e.index)}>
+                    {/* Overview Tab */}
+                    <TabPanel header="Dashboard Overview" leftIcon="pi pi-home mr-2">
                         <div className="grid">
-                            <div className="col-6">
-                                <div className="text-center p-3 border-round bg-blue-50">
-                                    <div className="text-blue-600 font-bold text-4xl mb-2">{dashboardData.performance.currentTermScore.overallAverage.toFixed(1)}%</div>
-                                    <div className="text-500">Average Score</div>
-                                </div>
-                            </div>
-                            <div className="col-6">
-                                <div className="text-center p-3 border-round bg-purple-50">
-                                    <div className="text-purple-600 font-bold text-4xl mb-2">#{dashboardData.performance.currentTermScore.overallPosition || 'N/A'}</div>
-                                    <div className="text-500">Class Position</div>
-                                </div>
-                            </div>
-                            <div className="col-6">
-                                <div className="text-center p-3">
-                                    <div className="font-semibold mb-1">Conduct</div>
-                                    <Tag value={getConductLabel(dashboardData.performance.currentTermScore.conduct)} severity={getConductColor(dashboardData.performance.currentTermScore.conduct)} />
-                                </div>
-                            </div>
-                            <div className="col-6">
-                                <div className="text-center p-3">
-                                    <div className="font-semibold mb-1">Interest</div>
-                                    <Tag value={getConductLabel(dashboardData.performance.currentTermScore.interest)} severity={getConductColor(dashboardData.performance.currentTermScore.interest)} />
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* Performance Trend Chart */}
-            <div className="col-12 lg:col-6">
-                <Card title="Performance Trend" subTitle="Last 5 exam records">
-                    {dashboardData.recentExamScores.length > 0 ? <Chart type="line" data={performanceTrendData} /> : <Message severity="info" text="No exam records available yet" />}
-                </Card>
-            </div>
-
-            {/* Grade Distribution */}
-            <div className="col-12 lg:col-6">
-                <Card title="Grade Distribution" subTitle="All subjects across all terms">
-                    <Chart type="bar" data={gradeChartData} />
-                </Card>
-            </div>
-
-            {/* Subject Performance */}
-            <div className="col-12 lg:col-6">
-                <Card title="Subject Performance" subTitle="Average scores per subject">
-                    {dashboardData.performance.subjectStats.length > 0 ? (
-                        <div className="flex flex-column gap-3">
-                            {dashboardData.performance.subjectStats.map((stat: any) => (
-                                <div key={stat.subject._id} className="p-3 border-round surface-100">
-                                    <div className="flex justify-content-between align-items-center mb-2">
-                                        <div>
-                                            <div className="font-semibold text-900">{stat.subject.name}</div>
-                                            <small className="text-500">{stat.subject.code}</small>
+                            {/* Statistics Cards */}
+                            <div className="col-12 lg:col-3 md:col-6">
+                                <Card className="surface-card shadow-2">
+                                    <div className="flex align-items-center gap-3">
+                                        <div className="flex align-items-center justify-content-center bg-blue-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
+                                            <i className="pi pi-chart-line text-blue-600 text-2xl"></i>
                                         </div>
-                                        <Tag value={stat.mostFrequentGrade} severity={getGradeColor(stat.mostFrequentGrade)} />
+                                        <div>
+                                            <div className="text-500 text-sm mb-1">Overall Average</div>
+                                            <div className="text-900 font-bold text-2xl">{dashboardData.performance.overallAverage}%</div>
+                                        </div>
                                     </div>
-                                    <div className="flex align-items-center gap-2">
-                                        <ProgressBar value={parseFloat(stat.averageScore)} style={{ flex: 1 }} />
-                                        <span className="font-bold">{stat.averageScore}%</span>
-                                    </div>
-                                    <small className="text-500">{stat.examsCount} exam(s) recorded</small>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <Message severity="info" text="No subject performance data available" />
-                    )}
-                </Card>
-            </div>
+                                </Card>
+                            </div>
 
-            {/* Attendance Summary */}
-            <div className="col-12 lg:col-4">
-                <Card title="Attendance Summary" subTitle="All recorded terms">
-                    <div className="flex flex-column gap-3">
-                        <div className="flex justify-content-between align-items-center p-3 border-round bg-green-50">
-                            <div>
-                                <i className="pi pi-check-circle text-green-600 mr-2"></i>
-                                <span className="font-semibold">Present</span>
-                            </div>
-                            <span className="font-bold text-xl text-green-600">{dashboardData.attendance.totalPresent}</span>
-                        </div>
-                        <div className="flex justify-content-between align-items-center p-3 border-round bg-red-50">
-                            <div>
-                                <i className="pi pi-times-circle text-red-600 mr-2"></i>
-                                <span className="font-semibold">Absent</span>
-                            </div>
-                            <span className="font-bold text-xl text-red-600">{dashboardData.attendance.totalAbsent}</span>
-                        </div>
-                        <div className="flex justify-content-between align-items-center p-3 border-round bg-yellow-50">
-                            <div>
-                                <i className="pi pi-clock text-yellow-600 mr-2"></i>
-                                <span className="font-semibold">Late</span>
-                            </div>
-                            <span className="font-bold text-xl text-yellow-600">{dashboardData.attendance.totalLate}</span>
-                        </div>
-                        <Divider />
-                        <div className="flex justify-content-between align-items-center">
-                            <span className="font-semibold">Total Days</span>
-                            <span className="font-bold text-xl">{dashboardData.attendance.totalDays}</span>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            {/* Guardian Information */}
-            {dashboardData.guardian && (
-                <div className="col-12 lg:col-4">
-                    <Card title="Guardian Information">
-                        <div className="flex flex-column gap-3">
-                            <div>
-                                <div className="text-500 text-sm mb-1">Name</div>
-                                <div className="font-semibold">{dashboardData.guardian.name}</div>
-                            </div>
-                            <div>
-                                <div className="text-500 text-sm mb-1">Relationship</div>
-                                <div className="font-semibold">{getConductLabel(dashboardData.guardian.relationship)}</div>
-                            </div>
-                            {dashboardData.guardian.phone && (
-                                <div>
-                                    <div className="text-500 text-sm mb-1">Phone</div>
-                                    <div className="font-semibold">
-                                        <i className="pi pi-phone mr-2"></i>
-                                        {dashboardData.guardian.phone}
+                            <div className="col-12 lg:col-3 md:col-6">
+                                <Card className="surface-card shadow-2">
+                                    <div className="flex align-items-center gap-3">
+                                        <div className="flex align-items-center justify-content-center bg-green-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
+                                            <i className="pi pi-check-circle text-green-600 text-2xl"></i>
+                                        </div>
+                                        <div>
+                                            <div className="text-500 text-sm mb-1">Attendance Rate</div>
+                                            <div className="text-900 font-bold text-2xl">{dashboardData.attendance.attendanceRate}%</div>
+                                        </div>
                                     </div>
+                                </Card>
+                            </div>
+
+                            <div className="col-12 lg:col-3 md:col-6">
+                                <Card className="surface-card shadow-2">
+                                    <div className="flex align-items-center gap-3">
+                                        <div className="flex align-items-center justify-content-center bg-purple-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
+                                            <i className="pi pi-book text-purple-600 text-2xl"></i>
+                                        </div>
+                                        <div>
+                                            <div className="text-500 text-sm mb-1">Subjects</div>
+                                            <div className="text-900 font-bold text-2xl">{dashboardData.academicInfo.subjects.length}</div>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            <div className="col-12 lg:col-3 md:col-6">
+                                <Card className="surface-card shadow-2">
+                                    <div className="flex align-items-center gap-3">
+                                        <div className="flex align-items-center justify-content-center bg-orange-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
+                                            <i className="pi pi-file text-orange-600 text-2xl"></i>
+                                        </div>
+                                        <div>
+                                            <div className="text-500 text-sm mb-1">Exam Records</div>
+                                            <div className="text-900 font-bold text-2xl">{dashboardData.performance.totalExamsRecorded}</div>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            {/* Current Term Performance */}
+                            {dashboardData.performance.currentTermScore && (
+                                <div className="col-12 lg:col-6">
+                                    <Card title="Current Term Performance" subTitle={`${dashboardData.academicInfo.currentAcademicYear} - Term ${dashboardData.academicInfo.currentAcademicTerm}`}>
+                                        <div className="grid">
+                                            <div className="col-6">
+                                                <div className="text-center p-3 border-round bg-blue-50">
+                                                    <div className="text-blue-600 font-bold text-4xl mb-2">{dashboardData.performance.currentTermScore.overallAverage.toFixed(1)}%</div>
+                                                    <div className="text-500">Average Score</div>
+                                                </div>
+                                            </div>
+                                            <div className="col-6">
+                                                <div className="text-center p-3 border-round bg-purple-50">
+                                                    <div className="text-purple-600 font-bold text-4xl mb-2">#{dashboardData.performance.currentTermScore.overallPosition || 'N/A'}</div>
+                                                    <div className="text-500">Class Position</div>
+                                                </div>
+                                            </div>
+                                            <div className="col-6">
+                                                <div className="text-center p-3">
+                                                    <div className="font-semibold mb-1">Conduct</div>
+                                                    <Tag value={getConductLabel(dashboardData.performance.currentTermScore.conduct)} severity={getConductColor(dashboardData.performance.currentTermScore.conduct)} />
+                                                </div>
+                                            </div>
+                                            <div className="col-6">
+                                                <div className="text-center p-3">
+                                                    <div className="font-semibold mb-1">Interest</div>
+                                                    <Tag value={getConductLabel(dashboardData.performance.currentTermScore.interest)} severity={getConductColor(dashboardData.performance.currentTermScore.interest)} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Card>
                                 </div>
                             )}
+
+                            {/* Performance Trend Chart */}
+                            <div className="col-12 lg:col-6">
+                                <Card title="Performance Trend" subTitle="Last 5 exam records">
+                                    {dashboardData.recentExamScores.length > 0 ? <Chart type="line" data={performanceTrendData} /> : <Message severity="info" text="No exam records available yet" />}
+                                </Card>
+                            </div>
+
+                            {/* Grade Distribution */}
+                            <div className="col-12 lg:col-6">
+                                <Card title="Grade Distribution" subTitle="All subjects across all terms">
+                                    <Chart type="bar" data={gradeChartData} />
+                                </Card>
+                            </div>
+
+                            {/* Subject Performance */}
+                            <div className="col-12 lg:col-6">
+                                <Card title="Subject Performance" subTitle="Average scores per subject">
+                                    {dashboardData.performance.subjectStats.length > 0 ? (
+                                        <div className="flex flex-column gap-3">
+                                            {dashboardData.performance.subjectStats.map((stat: any) => (
+                                                <div key={stat.subject._id} className="p-3 border-round surface-100">
+                                                    <div className="flex justify-content-between align-items-center mb-2">
+                                                        <div>
+                                                            <div className="font-semibold text-900">{stat.subject.name}</div>
+                                                            <small className="text-500">{stat.subject.code}</small>
+                                                        </div>
+                                                        <Tag value={stat.mostFrequentGrade} severity={getGradeColor(stat.mostFrequentGrade)} />
+                                                    </div>
+                                                    <div className="flex align-items-center gap-2">
+                                                        <ProgressBar value={parseFloat(stat.averageScore)} style={{ flex: 1 }} />
+                                                        <span className="font-bold">{stat.averageScore}%</span>
+                                                    </div>
+                                                    <small className="text-500">{stat.examsCount} exam(s) recorded</small>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <Message severity="info" text="No subject performance data available" />
+                                    )}
+                                </Card>
+                            </div>
+
+                            {/* Attendance Summary */}
+                            <div className="col-12 lg:col-4">
+                                <Card title="Attendance Summary" subTitle="All recorded terms">
+                                    <div className="flex flex-column gap-3">
+                                        <div className="flex justify-content-between align-items-center p-3 border-round bg-green-50">
+                                            <div>
+                                                <i className="pi pi-check-circle text-green-600 mr-2"></i>
+                                                <span className="font-semibold">Present</span>
+                                            </div>
+                                            <span className="font-bold text-xl text-green-600">{dashboardData.attendance.totalPresent}</span>
+                                        </div>
+                                        <div className="flex justify-content-between align-items-center p-3 border-round bg-red-50">
+                                            <div>
+                                                <i className="pi pi-times-circle text-red-600 mr-2"></i>
+                                                <span className="font-semibold">Absent</span>
+                                            </div>
+                                            <span className="font-bold text-xl text-red-600">{dashboardData.attendance.totalAbsent}</span>
+                                        </div>
+                                        <div className="flex justify-content-between align-items-center p-3 border-round bg-yellow-50">
+                                            <div>
+                                                <i className="pi pi-clock text-yellow-600 mr-2"></i>
+                                                <span className="font-semibold">Late</span>
+                                            </div>
+                                            <span className="font-bold text-xl text-yellow-600">{dashboardData.attendance.totalLate}</span>
+                                        </div>
+                                        <Divider />
+                                        <div className="flex justify-content-between align-items-center">
+                                            <span className="font-semibold">Total Days</span>
+                                            <span className="font-bold text-xl">{dashboardData.attendance.totalDays}</span>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            {/* Guardian Information */}
+                            {dashboardData.guardian && (
+                                <div className="col-12 lg:col-4">
+                                    <Card title="Guardian Information">
+                                        <div className="flex flex-column gap-3">
+                                            <div>
+                                                <div className="text-500 text-sm mb-1">Name</div>
+                                                <div className="font-semibold">{dashboardData.guardian.name}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-500 text-sm mb-1">Relationship</div>
+                                                <div className="font-semibold">{getConductLabel(dashboardData.guardian.relationship)}</div>
+                                            </div>
+                                            {dashboardData.guardian.phone && (
+                                                <div>
+                                                    <div className="text-500 text-sm mb-1">Phone</div>
+                                                    <div className="font-semibold">
+                                                        <i className="pi pi-phone mr-2"></i>
+                                                        {dashboardData.guardian.phone}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </Card>
+                                </div>
+                            )}
+
+                            {/* Account Balance */}
+                            <div className="col-12 lg:col-4">
+                                <Card title="Account Balance">
+                                    <div className="text-center p-4">
+                                        <div className="text-500 mb-2">Current Balance</div>
+                                        <div className={`font-bold text-4xl ${dashboardData.student.accountBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>${Math.abs(dashboardData.student.accountBalance).toFixed(2)}</div>
+                                        {dashboardData.student.accountBalance < 0 && <Tag value="Outstanding" severity="danger" className="mt-2" />}
+                                    </div>
+                                </Card>
+                            </div>
+
+                            {/* All Exam Records */}
+                            <div className="col-12">
+                                <Card title="Exam Records" subTitle="All academic years and terms">
+                                    {dashboardData.allExamScores.length > 0 ? (
+                                        <DataTable value={dashboardData.allExamScores} paginator rows={10} dataKey="_id" stripedRows>
+                                            <Column field="academicYear" header="Term" body={termTemplate} sortable />
+                                            <Column field="class.className" header="Class" />
+                                            <Column field="overallAverage" header="Average & Position" body={averageTemplate} sortable />
+                                            <Column field="conduct" header="Conduct" body={(row) => <Tag value={getConductLabel(row.conduct)} severity={getConductColor(row.conduct)} />} />
+                                            <Column field="interest" header="Interest" body={(row) => <Tag value={getConductLabel(row.interest)} severity={getConductColor(row.interest)} />} />
+                                            <Column header="Actions" body={actionTemplate} />
+                                        </DataTable>
+                                    ) : (
+                                        <Message severity="info" text="No exam records available yet" />
+                                    )}
+                                </Card>
+                            </div>
                         </div>
-                    </Card>
-                </div>
-            )}
+                    </TabPanel>
 
-            {/* Account Balance */}
-            <div className="col-12 lg:col-4">
-                <Card title="Account Balance">
-                    <div className="text-center p-4">
-                        <div className="text-500 mb-2">Current Balance</div>
-                        <div className={`font-bold text-4xl ${dashboardData.student.accountBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>${Math.abs(dashboardData.student.accountBalance).toFixed(2)}</div>
-                        {dashboardData.student.accountBalance < 0 && <Tag value="Outstanding" severity="danger" className="mt-2" />}
-                    </div>
-                </Card>
-            </div>
-
-            {/* All Exam Records */}
-            <div className="col-12">
-                <Card title="Exam Records" subTitle="All academic years and terms">
-                    {dashboardData.allExamScores.length > 0 ? (
-                        <DataTable value={dashboardData.allExamScores} paginator rows={10} dataKey="_id" stripedRows>
-                            <Column field="academicYear" header="Term" body={termTemplate} sortable />
-                            <Column field="class.className" header="Class" />
-                            <Column field="overallAverage" header="Average & Position" body={averageTemplate} sortable />
-                            <Column field="conduct" header="Conduct" body={(row) => <Tag value={getConductLabel(row.conduct)} severity={getConductColor(row.conduct)} />} />
-                            <Column field="interest" header="Interest" body={(row) => <Tag value={getConductLabel(row.interest)} severity={getConductColor(row.interest)} />} />
-                            <Column header="Actions" body={actionTemplate} />
-                        </DataTable>
-                    ) : (
-                        <Message severity="info" text="No exam records available yet" />
-                    )}
-                </Card>
+                    {/* Academic Transcript Tab */}
+                    <TabPanel header="Academic Transcript" leftIcon="pi pi-file-edit mr-2">
+                        <AcademicTranscript studentId={studentId} />
+                    </TabPanel>
+                </TabView>
             </div>
 
             {/* Exam Details Dialog */}
