@@ -1,37 +1,17 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
-
-export type ConfigType = 'tuition' | 'boarding' | 'transport' | 'pta' | 'exam' | 'sports' | 'library' | 'other';
-
-// Interface for FeeItem subdocument
-export interface IFeeItem {
-    determinant?: string;
-    description: string;
-    amount: number;
-    isOptional: boolean;
-}
-
-// Interface for InstallmentPlan subdocument
-export interface IInstallmentPlan {
-    installmentNumber?: number;
-    amount?: number;
-    dueDate?: Date;
-    description?: string;
-}
-
+import { IFeeDeterminant } from './FeeDeterminant';
 // Interface for FeesConfiguration document
 export interface IFeesConfiguration {
     site: mongoose.Types.ObjectId;
     class: mongoose.Types.ObjectId;
     academicYear: string;
     academicTerm?: number;
-    configType: ConfigType;
     configName?: string;
-    feeItems: IFeeItem[];
+    feeItems: IFeeDeterminant[];
     totalAmount: number;
     currency: string;
     paymentDeadline?: Date;
     installmentAllowed: boolean;
-    installmentPlan: IInstallmentPlan[];
     createdBy: mongoose.Types.ObjectId;
     isActive: boolean;
     createdAt: Date;
@@ -64,13 +44,6 @@ const FeesConfigurationSchema = new Schema<IFeesConfiguration>(
             index: true
         },
 
-        configType: {
-            type: String,
-            enum: ['tuition', 'boarding', 'transport', 'pta', 'exam', 'sports', 'library', 'other'],
-            required: true,
-            index: true
-        },
-
         configName: {
             type: String,
             trim: true
@@ -92,7 +65,7 @@ const FeesConfigurationSchema = new Schema<IFeesConfiguration>(
                     required: true,
                     min: 0
                 },
-                isOptional: {
+                isActive: {
                     type: Boolean,
                     default: false
                 }
@@ -120,15 +93,6 @@ const FeesConfigurationSchema = new Schema<IFeesConfiguration>(
             default: true
         },
 
-        installmentPlan: [
-            {
-                installmentNumber: Number,
-                amount: Number,
-                dueDate: Date,
-                description: String
-            }
-        ],
-
         createdBy: {
             type: Schema.Types.ObjectId,
             ref: 'Person',
@@ -147,15 +111,8 @@ const FeesConfigurationSchema = new Schema<IFeesConfiguration>(
 );
 
 // Indexes
-FeesConfigurationSchema.index({ site: 1, class: 1, academicYear: 1, academicTerm: 1, configType: 1 });
+FeesConfigurationSchema.index({ site: 1, class: 1, academicYear: 1, academicTerm: 1 });
 FeesConfigurationSchema.index({ academicYear: 1, academicTerm: 1, isActive: 1 });
-
-// Pre-save to calculate total if not provided
-FeesConfigurationSchema.pre('save', function () {
-    if (!this.totalAmount && this.feeItems && this.feeItems.length > 0) {
-        this.totalAmount = this.feeItems.reduce((sum, item) => sum + item.amount, 0);
-    }
-});
 
 const FeesConfiguration: Model<IFeesConfiguration> = mongoose.models.FeesConfiguration || mongoose.model<IFeesConfiguration>('FeesConfiguration', FeesConfigurationSchema);
 

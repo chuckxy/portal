@@ -11,6 +11,9 @@ let Subject: any;
 let Department: any;
 let Faculty: any;
 let FeesPayment: any;
+let FeesConfiguration: any;
+let Expenditure: any;
+let Scholarship: any;
 let ExamScore: any;
 
 try {
@@ -22,6 +25,9 @@ try {
     Department = mongoose.models.Department || require('@/models/Department').default;
     Faculty = mongoose.models.Faculty || require('@/models/Faculty').default;
     FeesPayment = mongoose.models.FeesPayment || require('@/models/FeesPayment').default;
+    FeesConfiguration = mongoose.models.FeesConfiguration || require('@/models/FeesConfiguration').default;
+    Expenditure = mongoose.models.Expenditure || require('@/models/Expenditure').default;
+    Scholarship = mongoose.models.Scholarship || require('@/models/Scholarship').default;
     ExamScore = mongoose.models.ExamScore || require('@/models/ExamScore').default;
 } catch (error) {
     console.error('Error loading models:', error);
@@ -49,15 +55,25 @@ export async function GET(request: NextRequest) {
         const schoolId = proprietor.school?._id || proprietor.school;
 
         // Get current academic year and term
-        const currentYear = new Date().getFullYear();
-        const currentAcademicYear = `${currentYear}/${currentYear + 1}`;
-        const currentMonth = new Date().getMonth() + 1;
-        const currentAcademicTerm = currentMonth <= 4 ? 1 : currentMonth <= 8 ? 2 : 3;
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth(); // 0-11
+        const currentYear = currentDate.getFullYear();
+
+        let currentAcademicYear: string;
+        if (currentMonth >= 8) {
+            // September onwards
+            currentAcademicYear = `${currentYear}/${currentYear + 1}`;
+        } else {
+            // January to August
+            currentAcademicYear = `${currentYear - 1}/${currentYear}`;
+        }
+
+        const currentAcademicTerm = currentMonth <= 3 ? 1 : currentMonth <= 7 ? 2 : 3;
 
         // ============= FINANCIAL DATA =============
 
-        // Total revenue (all confirmed payments)
-        const totalRevenueResult = await FeesPayment.aggregate([
+        // Total income (all confirmed payments)
+        const totalIncomeResult = await FeesPayment.aggregate([
             {
                 $match: {
                     status: 'confirmed'
@@ -70,7 +86,26 @@ export async function GET(request: NextRequest) {
                 }
             }
         ]);
-        const totalRevenue = totalRevenueResult.length > 0 ? totalRevenueResult[0].total : 0;
+        const totalIncome = totalIncomeResult.length > 0 ? totalIncomeResult[0].total : 0;
+
+        // Total expenses (paid + approved expenditures)
+        const totalExpensesResult = await Expenditure.aggregate([
+            {
+                $match: {
+                    status: { $in: ['paid', 'approved'] }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: '$amount' }
+                }
+            }
+        ]);
+        const totalExpenses = totalExpensesResult.length > 0 ? totalExpensesResult[0].total : 0;
+
+        // Net cash flow
+        const netCashFlow = totalIncome - totalExpenses;
 
         // Revenue collected this term
         const termRevenueResult = await FeesPayment.aggregate([
@@ -91,13 +126,13 @@ export async function GET(request: NextRequest) {
         const collectedThisTerm = termRevenueResult.length > 0 ? termRevenueResult[0].total : 0;
 
         // Revenue collected this month
-        const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
-        const endOfMonth = new Date(currentYear, currentMonth, 0);
+        const startOfMonth = new Date(currentYear, currentMonth, 1);
+        const endOfMonth = new Date(currentYear, currentMonth + 1, 0);
         const monthRevenueResult = await FeesPayment.aggregate([
             {
                 $match: {
                     status: 'confirmed',
-                    datePaid: { $gte: startOfMonth, $lte: endOfMonth }
+                    paymentDate: { $gte: startOfMonth, $lte: endOfMonth }
                 }
             },
             {
@@ -124,6 +159,89 @@ export async function GET(request: NextRequest) {
             }
         ]);
         const pendingPayments = pendingPaymentsResult.length > 0 ? pendingPaymentsResult[0].total : 0;
+
+        // Total scholarships
+        const totalScholarshipsResult = await Scholarship.aggregate([
+            {
+                $match: {
+                    academicYear: currentAcademicYear,
+                    status: 'active'
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: '$totalGranted' }
+                }
+            }
+        ]);
+        const totalScholarships = totalScholarshipsResult.length > 0 ? totalScholarshipsResult[0].total : 0;
+
+        // Pending expenditure approvals
+        const pendingApprovals = await Expenditure.countDocuments({
+            status: 'pending'
+        });
+
+        // Calculate outstanding receivables and critical debtors
+        const students: any[] = await Person.find({
+            personCategory: 'student',
+            isActive: true,
+            school: schoolId,
+            'studentInfo.currentClass': { $exists: true, $ne: null }
+        })
+            .populate('studentInfo.currentClass')
+            .lean();
+
+        let outstandingReceivables = 0;
+        let criticalDebtors = 0;
+        let expectedFees = 0;
+        let collectedFees = collectedThisTerm;
+
+        for (const student of students) {
+            const currentClass = student.studentInfo?.currentClass;
+            if (!currentClass) continue;
+
+            // Find fee configuration
+            let feeConfig: any = await FeesConfiguration.findOne({
+                class: currentClass._id || currentClass,
+                academicYear: currentAcademicYear,
+                academicTerm: currentAcademicTerm,
+                isActive: true
+            }).lean();
+
+            // Fallback to any config for the year
+            if (!feeConfig) {
+                feeConfig = await FeesConfiguration.findOne({
+                    class: currentClass._id || currentClass,
+                    academicYear: currentAcademicYear,
+                    isActive: true
+                }).lean();
+            }
+
+            if (feeConfig) {
+                expectedFees += feeConfig.totalAmount || 0;
+
+                // Get payments for this student
+                const payments: any[] = await FeesPayment.find({
+                    student: student._id,
+                    academicYear: currentAcademicYear,
+                    academicTerm: currentAcademicTerm
+                }).lean();
+
+                const totalPaid = payments.reduce((sum, payment) => sum + (payment.amountPaid || 0), 0);
+                const outstanding = Math.max(0, feeConfig.totalAmount - totalPaid);
+                outstandingReceivables += outstanding;
+
+                // Check if critical debtor (<25% paid)
+                const percentagePaid = feeConfig.totalAmount > 0 ? (totalPaid / feeConfig.totalAmount) * 100 : 0;
+                if (percentagePaid < 25 && outstanding > 0) {
+                    criticalDebtors++;
+                }
+            }
+        }
+
+        // Collection rate
+        const collectionRate = expectedFees > 0 ? (collectedFees / expectedFees) * 100 : 0;
 
         // ============= ENROLLMENT DATA =============
 
@@ -325,10 +443,17 @@ export async function GET(request: NextRequest) {
                 school: proprietor.school
             },
             financial: {
-                totalRevenue,
+                totalIncome,
+                totalExpenses,
+                netCashFlow,
                 pendingPayments,
                 collectedThisTerm,
                 collectedThisMonth,
+                outstandingReceivables,
+                totalScholarships,
+                criticalDebtors,
+                pendingApprovals,
+                collectionRate,
                 currency: 'GHS'
             },
             enrollment: {

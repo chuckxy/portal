@@ -8,9 +8,9 @@ import { Column } from 'primereact/column';
 import { Tag } from 'primereact/tag';
 import { Skeleton } from 'primereact/skeleton';
 import { Message } from 'primereact/message';
+import { Divider } from 'primereact/divider';
 import { Dialog } from 'primereact/dialog';
 import { Chart } from 'primereact/chart';
-import { Divider } from 'primereact/divider';
 import { ProgressBar } from 'primereact/progressbar';
 import { Panel } from 'primereact/panel';
 import { TabView, TabPanel } from 'primereact/tabview';
@@ -30,6 +30,20 @@ interface DashboardData {
     attendance: any;
     recentExamScores: any[];
     allExamScores: any[];
+    financial?: {
+        accountBalance: number;
+        totalFeesRequired: number;
+        totalFeesPaid: number;
+        outstandingBalance: number;
+        percentagePaid: number;
+        paymentDeadline?: Date;
+        daysOverdue?: number;
+        lastPaymentDate?: Date;
+        lastPaymentAmount?: number;
+        paymentHistory: any[];
+        scholarships: any[];
+        feeBreakdown: any[];
+    };
 }
 
 export default function StudentDashboard({ studentId }: StudentDashboardProps) {
@@ -107,6 +121,20 @@ export default function StudentDashboard({ studentId }: StudentDashboardProps) {
 
     const getConductLabel = (conduct: string) => {
         return conduct?.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) || 'N/A';
+    };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-GH', {
+            style: 'currency',
+            currency: 'GHS'
+        }).format(amount);
+    };
+
+    const getPaymentStatusSeverity = (percentagePaid: number) => {
+        if (percentagePaid >= 75) return 'success';
+        if (percentagePaid >= 50) return 'info';
+        if (percentagePaid >= 25) return 'warning';
+        return 'danger';
     };
 
     const gradeTemplate = (rowData: any) => {
@@ -368,6 +396,220 @@ export default function StudentDashboard({ studentId }: StudentDashboardProps) {
                                     )}
                                 </Card>
                             </div>
+
+                            {/* Financial Information */}
+                            {dashboardData.financial && (
+                                <>
+                                    <div className="col-12">
+                                        <Divider align="left">
+                                            <div className="inline-flex align-items-center">
+                                                <i className="pi pi-wallet mr-2"></i>
+                                                <span className="font-bold">Financial Information</span>
+                                            </div>
+                                        </Divider>
+                                    </div>
+
+                                    {/* Financial Statistics Cards */}
+                                    <div className="col-12 lg:col-3 md:col-6">
+                                        <Card className="surface-card shadow-2">
+                                            <div className="flex align-items-center gap-3">
+                                                <div className="flex align-items-center justify-content-center bg-indigo-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
+                                                    <i className="pi pi-money-bill text-indigo-600 text-2xl"></i>
+                                                </div>
+                                                <div>
+                                                    <div className="text-500 text-sm mb-1">Total Fees Required</div>
+                                                    <div className="text-900 font-bold text-xl">{formatCurrency(dashboardData.financial.totalFeesRequired)}</div>
+                                                </div>
+                                            </div>
+                                        </Card>
+                                    </div>
+
+                                    <div className="col-12 lg:col-3 md:col-6">
+                                        <Card className="surface-card shadow-2">
+                                            <div className="flex align-items-center gap-3">
+                                                <div className="flex align-items-center justify-content-center bg-green-100 border-circle" style={{ width: '3rem', height: '3rem' }}>
+                                                    <i className="pi pi-check-circle text-green-600 text-2xl"></i>
+                                                </div>
+                                                <div>
+                                                    <div className="text-500 text-sm mb-1">Amount Paid</div>
+                                                    <div className="text-900 font-bold text-xl">{formatCurrency(dashboardData.financial.totalFeesPaid)}</div>
+                                                </div>
+                                            </div>
+                                        </Card>
+                                    </div>
+
+                                    <div className="col-12 lg:col-3 md:col-6">
+                                        <Card className={`surface-card shadow-2 ${dashboardData.financial.outstandingBalance > 0 ? 'border-left-3 border-orange-500' : ''}`}>
+                                            <div className="flex align-items-center gap-3">
+                                                <div
+                                                    className={`flex align-items-center justify-content-center border-circle ${dashboardData.financial.outstandingBalance > 0 ? 'bg-orange-100' : 'bg-gray-100'}`}
+                                                    style={{ width: '3rem', height: '3rem' }}
+                                                >
+                                                    <i className={`pi pi-exclamation-triangle ${dashboardData.financial.outstandingBalance > 0 ? 'text-orange-600' : 'text-gray-600'} text-2xl`}></i>
+                                                </div>
+                                                <div>
+                                                    <div className="text-500 text-sm mb-1">Outstanding Balance</div>
+                                                    <div className={`font-bold text-xl ${dashboardData.financial.outstandingBalance > 0 ? 'text-orange-600' : 'text-gray-600'}`}>{formatCurrency(dashboardData.financial.outstandingBalance)}</div>
+                                                </div>
+                                            </div>
+                                        </Card>
+                                    </div>
+
+                                    <div className="col-12 lg:col-3 md:col-6">
+                                        <Card className="surface-card shadow-2">
+                                            <div className="flex align-items-center gap-3">
+                                                <div
+                                                    className={`flex align-items-center justify-content-center border-circle ${
+                                                        getPaymentStatusSeverity(dashboardData.financial.percentagePaid) === 'success'
+                                                            ? 'bg-green-100'
+                                                            : getPaymentStatusSeverity(dashboardData.financial.percentagePaid) === 'warning'
+                                                            ? 'bg-yellow-100'
+                                                            : 'bg-red-100'
+                                                    }`}
+                                                    style={{ width: '3rem', height: '3rem' }}
+                                                >
+                                                    <i
+                                                        className={`pi pi-percentage ${
+                                                            getPaymentStatusSeverity(dashboardData.financial.percentagePaid) === 'success'
+                                                                ? 'text-green-600'
+                                                                : getPaymentStatusSeverity(dashboardData.financial.percentagePaid) === 'warning'
+                                                                ? 'text-yellow-600'
+                                                                : 'text-red-600'
+                                                        } text-2xl`}
+                                                    ></i>
+                                                </div>
+                                                <div>
+                                                    <div className="text-500 text-sm mb-1">Payment Progress</div>
+                                                    <div className="text-900 font-bold text-xl">{dashboardData.financial.percentagePaid.toFixed(1)}%</div>
+                                                </div>
+                                            </div>
+                                        </Card>
+                                    </div>
+
+                                    {/* Payment Progress Bar */}
+                                    <div className="col-12">
+                                        <Card>
+                                            <div className="flex justify-content-between align-items-center mb-3">
+                                                <div>
+                                                    <h5 className="m-0 mb-1">Fee Payment Status</h5>
+                                                    <span className="text-500">
+                                                        {dashboardData.academicInfo.currentAcademicYear} - Term {dashboardData.academicInfo.currentAcademicTerm}
+                                                    </span>
+                                                </div>
+                                                {dashboardData.financial.daysOverdue && dashboardData.financial.daysOverdue > 0 && <Tag severity="danger" icon="pi pi-clock" value={`${dashboardData.financial.daysOverdue} days overdue`} />}
+                                            </div>
+                                            <ProgressBar
+                                                value={dashboardData.financial.percentagePaid}
+                                                color={
+                                                    getPaymentStatusSeverity(dashboardData.financial.percentagePaid) === 'success' ? '#22C55E' : getPaymentStatusSeverity(dashboardData.financial.percentagePaid) === 'warning' ? '#EAB308' : '#EF4444'
+                                                }
+                                            />
+                                            <div className="flex justify-content-between mt-2">
+                                                <small className="text-500">Paid: {formatCurrency(dashboardData.financial.totalFeesPaid)}</small>
+                                                <small className="text-500">Remaining: {formatCurrency(dashboardData.financial.outstandingBalance)}</small>
+                                            </div>
+                                        </Card>
+                                    </div>
+
+                                    {/* Overdue Warning */}
+                                    {dashboardData.financial.daysOverdue && dashboardData.financial.daysOverdue > 0 && (
+                                        <div className="col-12">
+                                            <Message severity="warn" text={`Your payment is ${dashboardData.financial.daysOverdue} days overdue. Please contact the finance office or make payment as soon as possible.`} />
+                                        </div>
+                                    )}
+
+                                    {/* Payment Deadline Info */}
+                                    {dashboardData.financial.paymentDeadline && !dashboardData.financial.daysOverdue && (
+                                        <div className="col-12">
+                                            <Message severity="info" text={`Payment deadline: ${new Date(dashboardData.financial.paymentDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`} />
+                                        </div>
+                                    )}
+
+                                    {/* Last Payment Info */}
+                                    {dashboardData.financial.lastPaymentDate && (
+                                        <div className="col-12 lg:col-6">
+                                            <Card title="Last Payment" className="h-full">
+                                                <div className="flex flex-column gap-2">
+                                                    <div className="flex justify-content-between">
+                                                        <span className="text-500">Date:</span>
+                                                        <span className="font-semibold">{new Date(dashboardData.financial.lastPaymentDate).toLocaleDateString('en-GB')}</span>
+                                                    </div>
+                                                    <div className="flex justify-content-between">
+                                                        <span className="text-500">Amount:</span>
+                                                        <span className="font-semibold text-green-600">{formatCurrency(dashboardData.financial.lastPaymentAmount || 0)}</span>
+                                                    </div>
+                                                </div>
+                                            </Card>
+                                        </div>
+                                    )}
+
+                                    {/* Fee Breakdown */}
+                                    {dashboardData.financial.feeBreakdown && dashboardData.financial.feeBreakdown.length > 0 && (
+                                        <div className="col-12 lg:col-6">
+                                            <Card title="Fee Breakdown" className="h-full">
+                                                <div className="flex flex-column gap-2">
+                                                    {dashboardData.financial.feeBreakdown.map((fee: any, index: number) => (
+                                                        <div key={index} className="flex justify-content-between p-2 surface-100 border-round">
+                                                            <span className="text-700">{fee.determinant?.name || 'Unknown Fee'}</span>
+                                                            <span className="font-semibold">{formatCurrency(fee.amount)}</span>
+                                                        </div>
+                                                    ))}
+                                                    <Divider className="my-2" />
+                                                    <div className="flex justify-content-between">
+                                                        <span className="font-bold">Total:</span>
+                                                        <span className="font-bold text-xl">{formatCurrency(dashboardData.financial.totalFeesRequired)}</span>
+                                                    </div>
+                                                </div>
+                                            </Card>
+                                        </div>
+                                    )}
+
+                                    {/* Active Scholarships */}
+                                    {dashboardData.financial.scholarships && dashboardData.financial.scholarships.length > 0 && (
+                                        <div className="col-12">
+                                            <Card title="Active Scholarships">
+                                                <div className="grid">
+                                                    {dashboardData.financial.scholarships.map((scholarship: any) => (
+                                                        <div key={scholarship._id} className="col-12 md:col-6 lg:col-4">
+                                                            <div className="p-3 surface-100 border-round">
+                                                                <div className="flex align-items-start gap-3">
+                                                                    <div className="flex align-items-center justify-content-center bg-green-500 text-white border-circle" style={{ width: '2.5rem', height: '2.5rem' }}>
+                                                                        <i className="pi pi-gift text-xl"></i>
+                                                                    </div>
+                                                                    <div className="flex-1">
+                                                                        <div className="font-semibold text-900 mb-1">{scholarship.scholarshipBody?.name || 'Scholarship'}</div>
+                                                                        <div className="text-green-600 font-bold mb-2">{formatCurrency(scholarship.totalGranted)}</div>
+                                                                        <div className="flex justify-content-between text-sm">
+                                                                            <span className="text-500">Year: {scholarship.academicYear}</span>
+                                                                            <Tag value={scholarship.status} severity={scholarship.status === 'active' ? 'success' : 'warning'} />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </Card>
+                                        </div>
+                                    )}
+
+                                    {/* Payment History */}
+                                    {dashboardData.financial.paymentHistory && dashboardData.financial.paymentHistory.length > 0 && (
+                                        <div className="col-12">
+                                            <Card title="Payment History" subTitle="Recent fee payments">
+                                                <DataTable value={dashboardData.financial.paymentHistory} paginator rows={5} emptyMessage="No payment history available">
+                                                    <Column field="paymentDate" header="Date" body={(rowData) => new Date(rowData.paymentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} />
+                                                    <Column field="amountPaid" header="Amount" body={(rowData) => formatCurrency(rowData.amountPaid)} />
+                                                    <Column field="paymentMethod" header="Method" body={(rowData) => <Tag value={rowData.paymentMethod || 'N/A'} />} />
+                                                    <Column field="receiptNumber" header="Receipt No." body={(rowData) => rowData.receiptNumber || 'N/A'} />
+                                                    <Column field="academicYear" header="Academic Period" body={(rowData) => `${rowData.academicYear} - Term ${rowData.academicTerm}`} />
+                                                    <Column field="remarks" header="Remarks" body={(rowData) => rowData.remarks || '-'} />
+                                                </DataTable>
+                                            </Card>
+                                        </div>
+                                    )}
+                                </>
+                            )}
 
                             {/* Attendance Summary */}
                             <div className="col-12 lg:col-4">

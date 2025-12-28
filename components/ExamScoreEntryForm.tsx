@@ -601,6 +601,7 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
     };
 
     const handleStudentChange = (studentObj: any) => {
+        console.log('Selected student:', studentObj);
         setFormData((prev) => ({
             ...prev,
             student: studentObj

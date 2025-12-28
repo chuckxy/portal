@@ -1,8 +1,8 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, Model } from 'mongoose';
 
-export type PaymentMethod = 'cash' | 'cheque' | 'bank_transfer' | 'mobile_money' | 'card' | 'online';
+// @ts-ignore
+export type PaymentMethod = 'cash' | 'cheque' | 'bank_transfer' | 'mobile_money' | 'card' | 'online' | 'scholarship';
 export type PaymentStatus = 'pending' | 'confirmed' | 'failed' | 'reversed';
-export type PaymentConfigType = 'tuition' | 'boarding' | 'transport' | 'pta' | 'exam' | 'sports' | 'library' | 'other';
 
 // Interface for ModifyHistory subdocument
 export interface IModifyHistory {
@@ -13,20 +13,19 @@ export interface IModifyHistory {
 }
 
 // Interface for FeesPayment document
+// @ts-ignore
 export interface IFeesPayment {
     student: mongoose.Types.ObjectId;
     site: mongoose.Types.ObjectId;
     class: mongoose.Types.ObjectId;
     academicYear: string;
     academicTerm?: number;
-    feesConfiguration?: mongoose.Types.ObjectId;
     amountPaid: number;
     currency: string;
     paymentMethod: PaymentMethod;
     paymentReference?: string;
     transactionId?: string;
     datePaid: Date;
-    configType?: PaymentConfigType;
     description?: string;
     receiptNumber?: string;
     receivedBy: mongoose.Types.ObjectId;
@@ -37,7 +36,8 @@ export interface IFeesPayment {
     updatedAt: Date;
 }
 
-const FeesPaymentSchema = new Schema<IFeesPayment>(
+// @ts-ignore
+const FeesPaymentSchema = new Schema(
     {
         student: {
             type: Schema.Types.ObjectId,
@@ -69,12 +69,6 @@ const FeesPaymentSchema = new Schema<IFeesPayment>(
             index: true
         },
 
-        feesConfiguration: {
-            type: Schema.Types.ObjectId,
-            ref: 'FeesConfiguration',
-            index: true
-        },
-
         amountPaid: {
             type: Number,
             required: true,
@@ -89,7 +83,7 @@ const FeesPaymentSchema = new Schema<IFeesPayment>(
 
         paymentMethod: {
             type: String,
-            enum: ['cash', 'cheque', 'bank_transfer', 'mobile_money', 'card', 'online'],
+            enum: ['cash', 'cheque', 'bank_transfer', 'mobile_money', 'card', 'online', 'scholarship'],
             required: true,
             index: true
         },
@@ -111,12 +105,6 @@ const FeesPaymentSchema = new Schema<IFeesPayment>(
             type: Date,
             required: true,
             default: Date.now,
-            index: true
-        },
-
-        configType: {
-            type: String,
-            enum: ['tuition', 'boarding', 'transport', 'pta', 'exam', 'sports', 'library', 'other'],
             index: true
         },
 

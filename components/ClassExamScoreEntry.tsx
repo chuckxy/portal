@@ -220,7 +220,7 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
             const studentScores: StudentScore[] = await Promise.all(
                 students.map(async (student: any) => {
                     try {
-                        const scoreResponse = await fetch(`/api/exam-scores?student=${student._id}&year=${formData.academicYear}&term=${formData.academicTerm}`);
+                        const scoreResponse = await fetch(`/api/exam-scores?student=${student._id}&academicYear=${formData.academicYear}&academicTerm=${formData.academicTerm}`);
                         const scoreData = await scoreResponse.json();
 
                         if (scoreData.scores && scoreData.scores.length > 0) {
@@ -236,6 +236,18 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
                                     totalScore: subjectScore.totalScore || 0,
                                     grade: grade,
                                     credit: getCreditPoints(grade),
+                                    hasExistingRecord: true,
+                                    existingRecordId: existingRecord._id
+                                };
+                            } else {
+                                // Student has an exam record but no score for this subject yet
+                                return {
+                                    student,
+                                    classScore: 0,
+                                    examScore: 0,
+                                    totalScore: 0,
+                                    grade: 'F',
+                                    credit: 0,
                                     hasExistingRecord: true,
                                     existingRecordId: existingRecord._id
                                 };
@@ -405,21 +417,46 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
                                 existingScores.push(subjectScoreData);
                             }
 
+                            // Extract only necessary fields, avoiding populated references
+                            const updatePayload = {
+                                student: existingRecord.student._id || existingRecord.student,
+                                school: existingRecord.school._id || existingRecord.school,
+                                site: existingRecord.site._id || existingRecord.site,
+                                class: existingRecord.class._id || existingRecord.class,
+                                academicYear: existingRecord.academicYear,
+                                academicTerm: existingRecord.academicTerm,
+                                scores: existingScores,
+                                overallAverage: existingRecord.overallAverage,
+                                totalMarks: existingRecord.totalMarks,
+                                attendance: existingRecord.attendance,
+                                conduct: existingRecord.conduct,
+                                interest: existingRecord.interest,
+                                formMasterComment: existingRecord.formMasterComment,
+                                headmasterComment: existingRecord.headmasterComment,
+                                promoted: existingRecord.promoted,
+                                promotedTo: existingRecord.promotedTo ? existingRecord.promotedTo._id || existingRecord.promotedTo : undefined,
+                                recordedBy: existingRecord.recordedBy._id || existingRecord.recordedBy,
+                                modifiedBy: user?._id,
+                                isPublished: existingRecord.isPublished
+                            };
+
                             const updateResponse = await fetch(`/api/exam-scores/${studentScore.existingRecordId}`, {
                                 method: 'PUT',
                                 headers,
-                                body: JSON.stringify({
-                                    ...existingRecord,
-                                    scores: existingScores,
-                                    modifiedBy: user?._id
-                                })
+                                body: JSON.stringify(updatePayload)
                             });
 
                             if (updateResponse.ok) {
                                 successCount++;
                             } else {
+                                const errorData = await updateResponse.json();
+                                console.error(`Failed to update student ${studentScore.student._id}:`, errorData);
                                 errorCount++;
                             }
+                        } else {
+                            const errorData = await response.json();
+                            console.error(`Failed to fetch existing record for student ${studentScore.student._id}:`, errorData);
+                            errorCount++;
                         }
                     } else {
                         // Create new record
@@ -453,6 +490,8 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
                         if (createResponse.ok) {
                             successCount++;
                         } else {
+                            const errorData = await createResponse.json();
+                            console.error(`Failed to create record for student ${studentScore.student._id}:`, errorData);
                             errorCount++;
                         }
                     }

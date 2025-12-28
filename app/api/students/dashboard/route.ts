@@ -9,6 +9,9 @@ let SiteClass: any;
 let Subject: any;
 let Faculty: any;
 let Department: any;
+let FeesConfiguration: any;
+let FeesPayment: any;
+let Scholarship: any;
 
 try {
     Person = mongoose.models.Person || require('@/models/Person').default;
@@ -17,6 +20,9 @@ try {
     Subject = mongoose.models.Subject || require('@/models/Subject').default;
     Faculty = mongoose.models.Faculty || require('@/models/Faculty').default;
     Department = mongoose.models.Department || require('@/models/Department').default;
+    FeesConfiguration = mongoose.models.FeesConfiguration || require('@/models/FeesConfiguration').default;
+    FeesPayment = mongoose.models.FeesPayment || require('@/models/FeesPayment').default;
+    Scholarship = mongoose.models.Scholarship || require('@/models/Scholarship').default;
 } catch (error) {
     console.error('Error loading models:', error);
 }
@@ -140,6 +146,108 @@ export async function GET(request: NextRequest) {
             });
         });
 
+        // Fetch financial information
+        let financialData = null;
+        if (student.studentInfo?.currentClass) {
+            // Get fee configuration for the student's class
+            const feeConfig: any = await FeesConfiguration.findOne({
+                class: student.studentInfo.currentClass,
+                academicYear: currentAcademicYear,
+                academicTerm: currentAcademicTerm,
+                isActive: true
+            })
+                .lean()
+                .exec();
+
+            // If no config found for specific term, try to find any config for the year
+            const fallbackFeeConfig: any =
+                !feeConfig &&
+                (await FeesConfiguration.findOne({
+                    class: student.studentInfo.currentClass,
+                    academicYear: currentAcademicYear,
+                    isActive: true
+                })
+                    .lean()
+                    .exec());
+
+            const activeFeeConfig = feeConfig || fallbackFeeConfig;
+
+            if (activeFeeConfig) {
+                // Get all payments for this student in current year/term
+                const payments: any[] = await FeesPayment.find({
+                    student: studentId,
+                    academicYear: currentAcademicYear,
+                    academicTerm: currentAcademicTerm
+                })
+                    .sort({ paymentDate: -1 })
+                    .lean()
+                    .exec();
+
+                // Calculate totals
+                const totalFeesRequired = activeFeeConfig.totalAmount || 0;
+                const totalFeesPaid = payments.reduce((sum, payment) => sum + (payment.amountPaid || 0), 0);
+                const outstandingBalance = Math.max(0, totalFeesRequired - totalFeesPaid);
+                const percentagePaid = totalFeesRequired > 0 ? (totalFeesPaid / totalFeesRequired) * 100 : 0;
+
+                // Calculate days overdue if payment deadline has passed
+                let daysOverdue = undefined;
+                if (activeFeeConfig.paymentDeadline) {
+                    const deadlineDate = new Date(activeFeeConfig.paymentDeadline);
+                    const today = new Date();
+                    if (today > deadlineDate && outstandingBalance > 0) {
+                        daysOverdue = Math.floor((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24));
+                    }
+                }
+
+                // Get last payment info
+                const lastPayment = payments.length > 0 ? payments[0] : null;
+
+                // Get active scholarships for this student
+                const scholarships: any[] = await Scholarship.find({
+                    student: studentId,
+                    academicYear: currentAcademicYear,
+                    status: 'active'
+                })
+                    .populate('scholarshipBody', 'name')
+                    .lean()
+                    .exec();
+
+                financialData = {
+                    accountBalance: student.studentInfo?.accountBalance || 0,
+                    totalFeesRequired,
+                    totalFeesPaid,
+                    outstandingBalance,
+                    percentagePaid,
+                    paymentDeadline: activeFeeConfig.paymentDeadline,
+                    daysOverdue,
+                    lastPaymentDate: lastPayment?.paymentDate,
+                    lastPaymentAmount: lastPayment?.amountPaid,
+                    paymentHistory: payments.map((payment) => ({
+                        _id: payment._id,
+                        paymentDate: payment.paymentDate,
+                        amountPaid: payment.amountPaid,
+                        paymentMethod: payment.paymentMethod,
+                        receiptNumber: payment.receiptNumber,
+                        academicYear: payment.academicYear,
+                        academicTerm: payment.academicTerm,
+                        remarks: payment.remarks
+                    })),
+                    scholarships: scholarships.map((scholarship) => ({
+                        _id: scholarship._id,
+                        scholarshipBody: scholarship.scholarshipBody,
+                        totalGranted: scholarship.totalGranted,
+                        academicYear: scholarship.academicYear,
+                        status: scholarship.status
+                    })),
+                    feeBreakdown:
+                        activeFeeConfig.feeItems?.map((item: any) => ({
+                            determinant: { name: item.determinant || item.description },
+                            amount: item.amount
+                        })) || []
+                };
+            }
+        }
+
         const dashboardData = {
             student: {
                 _id: student._id,
@@ -246,7 +354,8 @@ export async function GET(request: NextRequest) {
                 headmasterComment: score.headmasterComment,
                 nextTermBegins: score.nextTermBegins,
                 promoted: score.promoted
-            }))
+            })),
+            financial: financialData
         };
 
         return NextResponse.json({

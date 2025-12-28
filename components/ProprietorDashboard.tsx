@@ -16,10 +16,17 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
 interface FinancialData {
-    totalRevenue: number;
+    totalIncome: number;
+    totalExpenses: number;
+    netCashFlow: number;
     pendingPayments: number;
     collectedThisTerm: number;
     collectedThisMonth: number;
+    outstandingReceivables: number;
+    totalScholarships: number;
+    criticalDebtors: number;
+    pendingApprovals: number;
+    collectionRate: number;
     currency: string;
 }
 
@@ -274,41 +281,73 @@ export default function ProprietorDashboard() {
                 </Card>
             </div>
 
-            {/* Financial Overview Cards */}
-            <div className="col-12 lg:col-3 md:col-6">
-                <Card className="border-left-3 border-primary">
+            {/* Financial Overview Section */}
+            <div className="col-12">
+                <Divider align="left">
+                    <div className="inline-flex align-items-center">
+                        <i className="pi pi-wallet mr-2 text-2xl"></i>
+                        <span className="font-bold text-xl">Financial Overview</span>
+                    </div>
+                </Divider>
+            </div>
+
+            {/* Primary Financial Metrics */}
+            <div className="col-12 lg:col-4 md:col-6">
+                <Card className="border-left-3 border-green-500" style={{ background: 'linear-gradient(to right, #f0fdf4, #ffffff)' }}>
                     <div className="flex justify-content-between align-items-center">
                         <div>
-                            <span className="block text-500 font-medium mb-2">Total Revenue</span>
-                            <div className="text-900 font-bold text-xl">{formatCurrency(dashboardData.financial.totalRevenue, dashboardData.financial.currency)}</div>
+                            <span className="block text-500 font-medium mb-2">Total Income</span>
+                            <div className="text-green-700 font-bold text-2xl">{formatCurrency(dashboardData.financial.totalIncome, dashboardData.financial.currency)}</div>
+                            <small className="text-500">Fee Payments & Collections</small>
                         </div>
-                        <div className="flex align-items-center justify-content-center bg-blue-100 border-round" style={{ width: '3rem', height: '3rem' }}>
-                            <i className="pi pi-dollar text-blue-500 text-2xl" />
+                        <div className="flex align-items-center justify-content-center bg-green-500 text-white border-round" style={{ width: '3.5rem', height: '3.5rem' }}>
+                            <i className="pi pi-arrow-up text-3xl" />
                         </div>
                     </div>
                 </Card>
             </div>
 
-            <div className="col-12 lg:col-3 md:col-6">
-                <Card className="border-left-3 border-green-500">
+            <div className="col-12 lg:col-4 md:col-6">
+                <Card className="border-left-3 border-red-500" style={{ background: 'linear-gradient(to right, #fef2f2, #ffffff)' }}>
                     <div className="flex justify-content-between align-items-center">
                         <div>
-                            <span className="block text-500 font-medium mb-2">This Term</span>
-                            <div className="text-900 font-bold text-xl">{formatCurrency(dashboardData.financial.collectedThisTerm, dashboardData.financial.currency)}</div>
+                            <span className="block text-500 font-medium mb-2">Total Expenses</span>
+                            <div className="text-red-700 font-bold text-2xl">{formatCurrency(dashboardData.financial.totalExpenses, dashboardData.financial.currency)}</div>
+                            <small className="text-500">Expenditures & Payments</small>
                         </div>
-                        <div className="flex align-items-center justify-content-center bg-green-100 border-round" style={{ width: '3rem', height: '3rem' }}>
-                            <i className="pi pi-chart-line text-green-500 text-2xl" />
+                        <div className="flex align-items-center justify-content-center bg-red-500 text-white border-round" style={{ width: '3.5rem', height: '3.5rem' }}>
+                            <i className="pi pi-arrow-down text-3xl" />
                         </div>
                     </div>
                 </Card>
             </div>
 
+            <div className="col-12 lg:col-4 md:col-6">
+                <Card
+                    className={`border-left-3 ${dashboardData.financial.netCashFlow >= 0 ? 'border-blue-500' : 'border-orange-500'}`}
+                    style={{ background: dashboardData.financial.netCashFlow >= 0 ? 'linear-gradient(to right, #eff6ff, #ffffff)' : 'linear-gradient(to right, #fff7ed, #ffffff)' }}
+                >
+                    <div className="flex justify-content-between align-items-center">
+                        <div>
+                            <span className="block text-500 font-medium mb-2">Net Cash Flow</span>
+                            <div className={`font-bold text-2xl ${dashboardData.financial.netCashFlow >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>{formatCurrency(dashboardData.financial.netCashFlow, dashboardData.financial.currency)}</div>
+                            <small className="text-500">Income - Expenses</small>
+                        </div>
+                        <div className={`flex align-items-center justify-content-center ${dashboardData.financial.netCashFlow >= 0 ? 'bg-blue-500' : 'bg-orange-500'} text-white border-round`} style={{ width: '3.5rem', height: '3.5rem' }}>
+                            <i className="pi pi-chart-line text-3xl" />
+                        </div>
+                    </div>
+                </Card>
+            </div>
+
+            {/* Secondary Financial Metrics */}
             <div className="col-12 lg:col-3 md:col-6">
                 <Card className="border-left-3 border-orange-500">
                     <div className="flex justify-content-between align-items-center">
                         <div>
-                            <span className="block text-500 font-medium mb-2">Pending Payments</span>
-                            <div className="text-900 font-bold text-xl">{formatCurrency(dashboardData.financial.pendingPayments, dashboardData.financial.currency)}</div>
+                            <span className="block text-500 font-medium mb-2">Outstanding Receivables</span>
+                            <div className="text-900 font-bold text-xl">{formatCurrency(dashboardData.financial.outstandingReceivables, dashboardData.financial.currency)}</div>
+                            <small className="text-500">{dashboardData.financial.criticalDebtors} critical debtors</small>
                         </div>
                         <div className="flex align-items-center justify-content-center bg-orange-100 border-round" style={{ width: '3rem', height: '3rem' }}>
                             <i className="pi pi-exclamation-triangle text-orange-500 text-2xl" />
@@ -318,17 +357,88 @@ export default function ProprietorDashboard() {
             </div>
 
             <div className="col-12 lg:col-3 md:col-6">
-                <Card className="border-left-3 border-cyan-500">
+                <Card className="border-left-3 border-purple-500">
                     <div className="flex justify-content-between align-items-center">
                         <div>
-                            <span className="block text-500 font-medium mb-2">This Month</span>
-                            <div className="text-900 font-bold text-xl">{formatCurrency(dashboardData.financial.collectedThisMonth, dashboardData.financial.currency)}</div>
+                            <span className="block text-500 font-medium mb-2">Scholarships</span>
+                            <div className="text-900 font-bold text-xl">{formatCurrency(dashboardData.financial.totalScholarships, dashboardData.financial.currency)}</div>
+                            <small className="text-500">Total Granted</small>
                         </div>
-                        <div className="flex align-items-center justify-content-center bg-cyan-100 border-round" style={{ width: '3rem', height: '3rem' }}>
-                            <i className="pi pi-calendar text-cyan-500 text-2xl" />
+                        <div className="flex align-items-center justify-content-center bg-purple-100 border-round" style={{ width: '3rem', height: '3rem' }}>
+                            <i className="pi pi-gift text-purple-500 text-2xl" />
                         </div>
                     </div>
                 </Card>
+            </div>
+
+            <div className="col-12 lg:col-3 md:col-6">
+                <Card className="border-left-3 border-cyan-500">
+                    <div className="flex justify-content-between align-items-center">
+                        <div>
+                            <span className="block text-500 font-medium mb-2">Collection Rate</span>
+                            <div className="text-900 font-bold text-xl">{dashboardData.financial.collectionRate.toFixed(1)}%</div>
+                            <small className="text-500">This Term</small>
+                        </div>
+                        <div className="flex align-items-center justify-content-center bg-cyan-100 border-round" style={{ width: '3rem', height: '3rem' }}>
+                            <i className="pi pi-percentage text-cyan-500 text-2xl" />
+                        </div>
+                    </div>
+                </Card>
+            </div>
+
+            <div className="col-12 lg:col-3 md:col-6">
+                <Card className="border-left-3 border-yellow-500">
+                    <div className="flex justify-content-between align-items-center">
+                        <div>
+                            <span className="block text-500 font-medium mb-2">Pending Approvals</span>
+                            <div className="text-900 font-bold text-xl">{dashboardData.financial.pendingApprovals}</div>
+                            <small className="text-500">Expenditure Requests</small>
+                        </div>
+                        <div className="flex align-items-center justify-content-center bg-yellow-100 border-round" style={{ width: '3rem', height: '3rem' }}>
+                            <i className="pi pi-clock text-yellow-600 text-2xl" />
+                        </div>
+                    </div>
+                </Card>
+            </div>
+
+            {/* Financial Alerts */}
+            {(dashboardData.financial.criticalDebtors > 0 || dashboardData.financial.pendingApprovals > 5 || dashboardData.financial.collectionRate < 70 || dashboardData.financial.netCashFlow < 0) && (
+                <div className="col-12">
+                    <Card title="⚠️ Financial Alerts" className="bg-yellow-50">
+                        <div className="grid">
+                            {dashboardData.financial.criticalDebtors > 0 && (
+                                <div className="col-12 md:col-6">
+                                    <Message severity="warn" text={`${dashboardData.financial.criticalDebtors} students have critical outstanding balances (<25% paid)`} />
+                                </div>
+                            )}
+                            {dashboardData.financial.pendingApprovals > 5 && (
+                                <div className="col-12 md:col-6">
+                                    <Message severity="info" text={`${dashboardData.financial.pendingApprovals} expenditure requests awaiting approval`} />
+                                </div>
+                            )}
+                            {dashboardData.financial.collectionRate < 70 && (
+                                <div className="col-12 md:col-6">
+                                    <Message severity="warn" text={`Collection rate is ${dashboardData.financial.collectionRate.toFixed(1)}% - below target of 70%`} />
+                                </div>
+                            )}
+                            {dashboardData.financial.netCashFlow < 0 && (
+                                <div className="col-12 md:col-6">
+                                    <Message severity="error" text="Negative cash flow detected - expenses exceed income" />
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Enrollment Statistics Section */}
+            <div className="col-12">
+                <Divider align="left">
+                    <div className="inline-flex align-items-center">
+                        <i className="pi pi-users mr-2 text-2xl"></i>
+                        <span className="font-bold text-xl">Enrollment & Personnel</span>
+                    </div>
+                </Divider>
             </div>
 
             {/* Enrollment Statistics Cards */}
@@ -486,13 +596,25 @@ export default function ProprietorDashboard() {
                 <Card title="Quick Actions">
                     <div className="grid">
                         <div className="col-12 md:col-6 lg:col-3">
-                            <Button label="Manage Students" icon="pi pi-users" className="w-full p-button-outlined" onClick={() => router.push('/students')} />
+                            <Button label="Financial Overview" icon="pi pi-chart-line" className="w-full p-button-success" onClick={() => router.push('/finance')} />
                         </div>
                         <div className="col-12 md:col-6 lg:col-3">
-                            <Button label="Manage Teachers" icon="pi pi-briefcase" className="w-full p-button-outlined" onClick={() => router.push('/teachers')} />
+                            <Button label="Student Debtors" icon="pi pi-exclamation-triangle" severity="warning" className="w-full" onClick={() => router.push('/defaulters')} />
                         </div>
                         <div className="col-12 md:col-6 lg:col-3">
-                            <Button label="View Reports" icon="pi pi-chart-bar" className="w-full p-button-outlined" onClick={() => router.push('/reports')} />
+                            <Button label="Expenditures" icon="pi pi-money-bill" className="w-full p-button-outlined" onClick={() => router.push('/expenditures')} />
+                        </div>
+                        <div className="col-12 md:col-6 lg:col-3">
+                            <Button label="Fee Payments" icon="pi pi-dollar" className="w-full p-button-outlined" onClick={() => router.push('/payments')} />
+                        </div>
+                        <div className="col-12 md:col-6 lg:col-3">
+                            <Button label="Manage Students" icon="pi pi-users" className="w-full p-button-outlined" onClick={() => router.push('/persons')} />
+                        </div>
+                        <div className="col-12 md:col-6 lg:col-3">
+                            <Button label="Exam Scores" icon="pi pi-pencil" className="w-full p-button-outlined" onClick={() => router.push('/exam-scores/entry')} />
+                        </div>
+                        <div className="col-12 md:col-6 lg:col-3">
+                            <Button label="Scholarships" icon="pi pi-gift" className="w-full p-button-outlined" onClick={() => router.push('/scholarship/beneficiary')} />
                         </div>
                         <div className="col-12 md:col-6 lg:col-3">
                             <Button label="School Settings" icon="pi pi-cog" className="w-full p-button-outlined" onClick={() => router.push('/sites')} />

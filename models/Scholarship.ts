@@ -3,19 +3,11 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export type ScholarshipType = 'full' | 'partial' | 'merit' | 'need_based' | 'sports' | 'academic' | 'other';
 export type ScholarshipStatus = 'active' | 'expired' | 'suspended' | 'completed';
 
-// Interface for ScholarshipBody subdocument
-export interface IScholarshipBody {
-    name: string;
-    contactPerson?: string;
-    contactPhone?: string;
-    contactEmail?: string;
-    country?: mongoose.Types.ObjectId;
-}
-
 // Interface for Grant subdocument
 export interface IGrant {
     amount: number;
     currency: string;
+    scholarshipBody: mongoose.Types.ObjectId;
     referenceNumber?: string;
     dateReceived: Date;
     academicYear?: string;
@@ -47,7 +39,7 @@ export interface IScholarship extends Document {
     school: mongoose.Types.ObjectId;
     site?: mongoose.Types.ObjectId;
     scholarshipType: ScholarshipType;
-    scholarshipBody: IScholarshipBody;
+    scholarshipBodies: mongoose.Types.ObjectId[];
     grants: IGrant[];
     usage: IUsage[];
     dateStart: Date;
@@ -91,30 +83,12 @@ const ScholarshipSchema = new Schema<IScholarship>(
             index: true
         },
 
-        scholarshipBody: {
-            name: {
-                type: String,
-                required: true,
-                trim: true
-            },
-            contactPerson: {
-                type: String,
-                trim: true
-            },
-            contactPhone: {
-                type: String,
-                trim: true
-            },
-            contactEmail: {
-                type: String,
-                lowercase: true,
-                trim: true
-            },
-            country: {
+        scholarshipBodies: [
+            {
                 type: Schema.Types.ObjectId,
-                ref: 'Country'
+                ref: 'ScholarshipBody'
             }
-        },
+        ],
 
         grants: [
             {
@@ -127,6 +101,11 @@ const ScholarshipSchema = new Schema<IScholarship>(
                     type: String,
                     default: 'GHS',
                     uppercase: true
+                },
+                scholarshipBody: {
+                    type: Schema.Types.ObjectId,
+                    ref: 'ScholarshipBody',
+                    required: true
                 },
                 referenceNumber: {
                     type: String,
