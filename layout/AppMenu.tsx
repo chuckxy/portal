@@ -65,6 +65,18 @@ const AppMenu = () => {
         },
         { separator: true },
         {
+            label: 'Library Management',
+            icon: 'pi pi-book',
+            items: [
+                { label: 'Library Dashboard', icon: 'pi pi-fw pi-chart-line', to: '/library/dashboard' },
+                { label: 'Library Users', icon: 'pi pi-fw pi-id-card', to: '/library_user' },
+                { label: 'Library Items', icon: 'pi pi-fw pi-book', to: '/library_item' },
+                { label: 'Lending Records', icon: 'pi pi-fw pi-history', to: '/library_lending' },
+                { label: 'Online Books', icon: 'pi pi-fw pi-globe', to: '/library/online-books' }
+            ]
+        },
+        { separator: true },
+        {
             label: 'System Settings',
             icon: 'pi pi-cog',
             items: [

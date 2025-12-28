@@ -1,0 +1,216 @@
+'use client';
+
+import React, { useState, useRef } from 'react';
+import { Card } from 'primereact/card';
+import { Fieldset } from 'primereact/fieldset';
+import { Divider } from 'primereact/divider';
+import { InputText } from 'primereact/inputtext';
+import { Checkbox } from 'primereact/checkbox';
+import { Button } from 'primereact/button';
+import { Toast } from 'primereact/toast';
+import { ProgressSpinner } from 'primereact/progressspinner';
+import { Carousel } from 'primereact/carousel';
+import { Paginator } from 'primereact/paginator';
+import { Tooltip } from 'primereact/tooltip';
+import { Tag } from 'primereact/tag';
+import { BookProvider } from '@/types/book';
+import { getPlaceholderImage, shortenString, getArchiveThumbnail } from '@/lib/helpers/bookHelpers';
+
+const API_KEY = 'AIzaSyDCoHZ3aGCZLz5zrNXqirXzQPLeyRx8PYE';
+
+export default function AddBooksOnline() {
+    // Provider & Search State
+    const [provider, setProvider] = useState<BookProvider>('googleBooks');
+    const [searchText, setSearchText] = useState('');
+    const [filterValue, setFilterValue] = useState('');
+    const [searchBy, setSearchBy] = useState<'title' | 'author' | 'isbn' | 'subject' | 'publisher' | ''>('');
+    const [allowFilter, setAllowFilter] = useState(false);
+    const [googleFilter, setGoogleFilter] = useState<string | null>(null);
+
+    // Books State
+    const [books, setBooks] = useState<any[]>([]);
+    const [unfilteredBooks, setUnfilteredBooks] = useState<any[]>([]);
+    const [totalResults, setTotalResults] = useState(0);
+
+    // Pagination
+    const [startIndex, setStartIndex] = useState(0);
+    const [page, setPage] = useState(0);
+    const [first, setFirst] = useState(0);
+    const [rows] = useState(10);
+
+    // UI State
+    const [isLoading, setIsLoading] = useState(false);
+    const [workerBusy, setWorkerBusy] = useState(false);
+    const [addingBookId, setAddingBookId] = useState<string | undefined>();
+    const [fullSearchValue, setFullSearchValue] = useState('');
+
+    const toast = useRef<Toast>(null);
+
+    // Provider URLs
+    const getSearchUrl = (): string | null => {
+        if (!searchText && !filterValue) {
+            showMessage('Empty Search', 'No value was found for searching query', 'error');
+            return null;
+        }
+
+        switch (provider) {
+            case 'googleBooks':
+                return getGoogleBooksUrl();
+            case 'openLibrary':
+                return getOpenLibraryUrl();
+            case 'dBooks':
+                return `https://www.dbooks.org/api/search/${encodeURIComponent(searchText)}`;
+            case 'internetArchive':
+                return getInternetArchiveUrl();
+            case 'libraryOfCongress':
+                return getLibraryOfCongressUrl();
+            default:
+                return null;
+        }
+    };
+
+    const getGoogleBooksUrl = (): string => {
+        const params: any = {
+            key: API_KEY,
+            maxResults: 20,
+            startIndex,
+            q: searchText
+        };
+
+        if (googleFilter) params.filter = googleFilter;
+
+        if (allowFilter && filterValue) {
+            const prefix = getGoogleSearchPrefix(searchBy);
+            params.q = `${prefix}:${filterValue}`;
+        }
+
+        const queryString = Object.entries(params)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('&');
+
+        return `https://www.googleapis.com/books/v1/volumes?${queryString}`;
+    };
+
+    const getOpenLibraryUrl = (): string | null => {
+        if (allowFilter && !filterValue) return null;
+        if (!allowFilter && !searchText) return null;
+
+        const params: any = {
+            limit: 40,
+            offset: startIndex,
+            fields: 'title,author_name,publish_date,isbn,cover_i,ebook_access,publishers,subject,lccn,key'
+        };
+
+        if (allowFilter && filterValue) {
+            const fieldKey = getOpenLibraryField(searchBy);
+            params[fieldKey] = filterValue;
+        } else {
+            params.q = searchText;
+        }
+
+        const queryString = Object.entries(params)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('&');
+
+        return `https://openlibrary.org/search.json?${queryString}`;
+    };
+
+    const getInternetArchiveUrl = (): string => {
+        return `https://archive.org/advancedsearch.php?q=${encodeURIComponent(searchText)}&rows=20&page=${startIndex}&output=json`;
+    };
+
+    const getLibraryOfCongressUrl = (): string => {
+        return `https://www.loc.gov/search/?q=${encodeURIComponent(searchText)}&fo=json&at=results,pagination&c=20&sp=${startIndex}`;
+    };
+
+    const getGoogleSearchPrefix = (field: string): string => {
+        const map: Record<string, string> = {
+            title: 'intitle',
+            author: 'inauthor',
+            isbn: 'isbn',
+            subject: 'subject',
+            publisher: 'inpublisher'
+        };
+        return map[field] || '';
+    };
+
+    const getOpenLibraryField = (field: string): string => {
+        const map: Record<string, string> = {
+            title: 'title',
+            author: 'author',
+            isbn: 'isbn',
+            subject: 'subject',
+            publisher: 'publisher'
+        };
+        return map[field] || 'q';
+    };
+
+    return (
+        <div className="card">
+            <Toast ref={toast} position="bottom-right" />
+
+            {/* Header */}
+            <div className="mb-4">
+                <h2 className="text-3xl font-bold text-900 mb-2">Add Books from Online Sources</h2>
+                <p className="text-600 text-lg">Search and import books from multiple online providers</p>
+            </div>
+
+            {isLoading && (
+                <div className="flex justify-content-center align-items-center p-5">
+                    <ProgressSpinner />
+                </div>
+            )}
+
+            <Card>
+                {/* Provider Selection */}
+                <Fieldset legend="Select Provider" className="mb-4">
+                    <ProviderSelector selectedProvider={provider} onChange={handleProviderChange} />
+                </Fieldset>
+
+                <Divider />
+
+                {/* Search Controls */}
+                <Fieldset legend="Search Options" className="mb-4">
+                    <SearchControls
+                        searchText={searchText}
+                        onSearchTextChange={setSearchText}
+                        filterValue={filterValue}
+                        onFilterValueChange={setFilterValue}
+                        searchBy={searchBy}
+                        onSearchByChange={setSearchBy}
+                        allowFilter={allowFilter}
+                        onAllowFilterChange={setAllowFilter}
+                        onSearch={handleSearch}
+                        isLoading={isLoading}
+                        provider={provider}
+                    />
+                </Fieldset>
+
+                {/* Local Search */}
+                {books.length > 0 && (
+                    <div className="flex flex-row-reverse flex-wrap mb-4">
+                        <span className="p-input-icon-left">
+                            <i className="pi pi-search" />
+                            <InputText value={localSearchValue} onChange={(e) => handleLocalSearch(e.target.value)} placeholder="Filter loaded books..." className="w-full" />
+                        </span>
+                    </div>
+                )}
+
+                {/* Book Grid */}
+                {!isLoading && books.length > 0 && (
+                    <BookGrid
+                        books={books}
+                        onRead={handleReadBook}
+                        onAddToLibrary={handleAddToLibrary}
+                        isLoadingMore={isLoadingMore}
+                        currentPage={currentPage}
+                        rowsPerPage={rowsPerPage}
+                        totalBooks={books.length}
+                        onPageChange={handlePageChange}
+                        addingBookId={addingBookId}
+                    />
+                )}
+            </Card>
+        </div>
+    );
+}

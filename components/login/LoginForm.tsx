@@ -77,10 +77,10 @@ const LoginForm: React.FC = () => {
                         router.push('/proprietor');
                         break;
                     case 'finance':
-                        router.push('/proprietor');
+                        router.push('/finance');
                         break;
                     case 'librarian':
-                        router.push('/home');
+                        router.push('/library/dashboard');
                         break;
                     case 'admin':
                         router.push('/proprietor');
