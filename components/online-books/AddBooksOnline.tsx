@@ -15,8 +15,10 @@ import { Tooltip } from 'primereact/tooltip';
 import { Tag } from 'primereact/tag';
 import { BookProvider } from '@/types/book';
 import { getPlaceholderImage, shortenString, getArchiveThumbnail } from '@/lib/helpers/bookHelpers';
+import { useAuth } from '@/context/AuthContext';
 
 export default function AddBooksOnline() {
+    const { user } = useAuth();
     // State
     const [provider, setProvider] = useState<BookProvider>('googleBooks');
     const [searchText, setSearchText] = useState('');
@@ -521,13 +523,34 @@ export default function AddBooksOnline() {
             showMessage('Error', 'Failed to download book', 'error');
         }
     };
-
     // Add to library functions
     const saveBookToLibrary = async (bookData: any) => {
+        // Add siteInventory for new items
+        const dataToSave = { ...bookData };
+        if (user?.school && user?.schoolSite) {
+            dataToSave.siteInventory = [
+                {
+                    school: user.school,
+                    site: user.schoolSite,
+                    quantity: 1,
+                    availableQuantity: 1,
+                    dateAdded: new Date(),
+                    stockAdjustments: [
+                        {
+                            adjustmentType: 'addition',
+                            quantity: 1,
+                            remarks: 'Initial inventory - imported from online source',
+                            adjustedBy: user.id,
+                            date: new Date()
+                        }
+                    ]
+                }
+            ];
+        }
         const response = await fetch('/api/library-items/add-online', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookData })
+            body: JSON.stringify({ bookData: dataToSave })
         });
 
         if (!response.ok) {

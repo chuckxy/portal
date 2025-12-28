@@ -18,16 +18,20 @@ export async function GET(request: NextRequest) {
     try {
         await connectDB();
 
+        const { searchParams } = new URL(request.url);
+        const siteId = searchParams.get('site');
+        const siteFilter = siteId ? { 'siteInventory.site': new mongoose.Types.ObjectId(siteId) } : {};
+
         const providers = await LibraryItem.aggregate([
             {
                 $match: {
-                    'digitalContent.hasDigitalVersion': true,
-                    'digitalContent.externalProvider': { $exists: true, $ne: null }
+                    provider: { $in: ['Google Books', 'Open Library', 'DBooks', 'IArchive'] },
+                    ...siteFilter
                 }
             },
             {
                 $group: {
-                    _id: '$digitalContent.externalProvider',
+                    _id: '$provider',
                     count: { $sum: 1 }
                 }
             },
@@ -41,13 +45,14 @@ export async function GET(request: NextRequest) {
             { $sort: { count: -1 } }
         ]);
 
-        // Add physical books as a category
-        const physicalCount = await LibraryItem.countDocuments({
-            $or: [{ 'digitalContent.hasDigitalVersion': false }, { 'digitalContent.hasDigitalVersion': { $exists: false } }]
+        // Add local/physical books as a category
+        const localCount = await LibraryItem.countDocuments({
+            provider: 'Local User Add',
+            ...siteFilter
         });
 
-        if (physicalCount > 0) {
-            providers.push({ name: 'Physical Books', count: physicalCount });
+        if (localCount > 0) {
+            providers.push({ name: 'Local User Add', count: localCount });
         }
 
         return NextResponse.json(providers);

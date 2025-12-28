@@ -18,12 +18,17 @@ export async function GET(request: NextRequest) {
     try {
         await connectDB();
 
+        const { searchParams } = new URL(request.url);
+        const siteId = searchParams.get('site');
+        const siteFilter = siteId ? { site: new mongoose.Types.ObjectId(siteId) } : {};
+
         const topBooks = await LibraryLending.aggregate([
+            { $match: siteFilter },
             { $unwind: '$items' },
             {
                 $group: {
                     _id: '$items.book',
-                    count: { $sum: '$items.quantityBorrowed' }
+                    count: { $sum: '$items.quantityIssued' }
                 }
             },
             { $sort: { count: -1 } },

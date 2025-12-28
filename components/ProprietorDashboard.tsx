@@ -22,6 +22,7 @@ interface FinancialData {
     pendingPayments: number;
     collectedThisTerm: number;
     collectedThisMonth: number;
+    totalDailyCollections: number;
     outstandingReceivables: number;
     totalScholarships: number;
     criticalDebtors: number;

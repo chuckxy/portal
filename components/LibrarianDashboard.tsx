@@ -16,6 +16,7 @@ import { Menu } from 'primereact/menu';
 import { Dialog } from 'primereact/dialog';
 import { Calendar } from 'primereact/calendar';
 import { Dropdown } from 'primereact/dropdown';
+import { useAuth } from '@/context/AuthContext';
 
 interface DashboardStats {
     totalBooks: number;
@@ -35,17 +36,14 @@ interface Book {
     isbn: string;
     status: 'available' | 'borrowed' | 'reserved' | 'lost' | 'damaged';
     itemType: string;
-    digitalContent?: {
-        hasDigitalVersion: boolean;
-        externalProvider?: string;
-    };
+    provider?: string;
     totalQuantity?: number;
     availableQuantity?: number;
 }
 
 interface BorrowedItem {
     _id: string;
-    user: {
+    borrower: {
         firstName: string;
         lastName: string;
         email: string;
@@ -55,10 +53,11 @@ interface BorrowedItem {
             title: string;
             isbn: string;
         };
-        dueDate: Date;
-        status: string;
+        quantityIssued: number;
+        quantityReturned: number;
     }[];
-    borrowDate: Date;
+    issuedDate: Date;
+    dueDate: Date;
     isOverdue: boolean;
 }
 
@@ -75,6 +74,9 @@ interface LibraryUser {
 }
 
 export default function LibrarianDashboard() {
+    const { user } = useAuth();
+    const userSite = user?.schoolSite;
+
     // State
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [books, setBooks] = useState<Book[]>([]);
@@ -113,7 +115,9 @@ export default function LibrarianDashboard() {
 
     const fetchStats = async () => {
         try {
-            const response = await fetch('/api/library-dashboard/stats');
+            const url = userSite ? `/api/library-dashboard/stats?site=${userSite}` : '/api/library-dashboard/stats';
+            console.log(url);
+            const response = await fetch(url);
             const data = await response.json();
             setStats(data);
         } catch (error) {
@@ -123,9 +127,10 @@ export default function LibrarianDashboard() {
 
     const fetchBooks = async () => {
         try {
-            const response = await fetch('/api/library-items?limit=100');
+            const url = userSite ? `/api/library-items?site=${userSite}&limit=100` : '/api/library-items?limit=100';
+            const response = await fetch(url);
             const data = await response.json();
-            setBooks(data.items || []);
+            setBooks(Array.isArray(data) ? data : data.items || []);
         } catch (error) {
             console.error('Error fetching books:', error);
         }
@@ -133,9 +138,10 @@ export default function LibrarianDashboard() {
 
     const fetchBorrowedItems = async () => {
         try {
-            const response = await fetch('/api/library-lending?status=active');
+            const url = userSite ? `/api/library-lending?status=active&site=${userSite}` : '/api/library-lending?status=active';
+            const response = await fetch(url);
             const data = await response.json();
-            setBorrowedItems(data.lendings || []);
+            setBorrowedItems(Array.isArray(data) ? data : data.lendings || []);
         } catch (error) {
             console.error('Error fetching borrowed items:', error);
         }
@@ -143,9 +149,21 @@ export default function LibrarianDashboard() {
 
     const fetchUsers = async () => {
         try {
-            const response = await fetch('/api/library-users');
+            const url = userSite ? `/api/library-users?site=${userSite}` : '/api/library-users';
+            const response = await fetch(url);
             const data = await response.json();
-            setUsers(data.users || []);
+            const formattedUsers = (Array.isArray(data) ? data : data.users || []).map((libUser: any) => ({
+                _id: libUser._id,
+                firstName: libUser.user?.firstName || '',
+                lastName: libUser.user?.lastName || '',
+                email: libUser.user?.email || '',
+                role: libUser.membershipType || '',
+                activeLoanCount: libUser.activeBorrowingsCount || 0,
+                totalBorrowed: libUser.totalBorrowings || 0,
+                penalties: libUser.overdueFines || 0,
+                isActive: libUser.status === 'active'
+            }));
+            setUsers(formattedUsers);
         } catch (error) {
             console.error('Error fetching users:', error);
         }
@@ -153,8 +171,10 @@ export default function LibrarianDashboard() {
 
     const fetchAnalytics = async () => {
         try {
+            const siteParam = userSite ? `?site=${userSite}` : '';
+
             // Borrowing trends
-            const trendsRes = await fetch('/api/library-dashboard/trends');
+            const trendsRes = await fetch(`/api/library-dashboard/trends${siteParam}`);
             const trends = await trendsRes.json();
             setTrendData({
                 labels: trends.labels || [],
@@ -177,7 +197,7 @@ export default function LibrarianDashboard() {
             });
 
             // Top books
-            const topBooksRes = await fetch('/api/library-dashboard/top-books');
+            const topBooksRes = await fetch(`/api/library-dashboard/top-books${siteParam}`);
             const topBooks = await topBooksRes.json();
             setTopBooksData({
                 labels: topBooks.map((b: any) => b.title?.substring(0, 20) + '...'),
@@ -191,7 +211,7 @@ export default function LibrarianDashboard() {
             });
 
             // Provider distribution
-            const providersRes = await fetch('/api/library-dashboard/providers');
+            const providersRes = await fetch(`/api/library-dashboard/providers${siteParam}`);
             const providers = await providersRes.json();
             setProviderData({
                 labels: providers.map((p: any) => p.name),
@@ -297,11 +317,12 @@ export default function LibrarianDashboard() {
         };
 
         const typeBodyTemplate = (rowData: Book) => {
-            if (rowData.digitalContent?.hasDigitalVersion) {
+            const isOnlineProvider = rowData.provider && ['Google Books', 'Open Library', 'DBooks', 'IArchive'].includes(rowData.provider);
+            if (isOnlineProvider) {
                 return (
                     <div className="flex gap-2">
                         <Tag value="Digital" severity="success" icon="pi pi-globe" />
-                        {rowData.digitalContent.externalProvider && <Tag value={rowData.digitalContent.externalProvider} severity="info" />}
+                        <Tag value={rowData.provider} severity="info" />
                     </div>
                 );
             }
@@ -382,7 +403,7 @@ export default function LibrarianDashboard() {
         };
 
         const userBodyTemplate = (rowData: BorrowedItem) => {
-            return `${rowData.user.firstName} ${rowData.user.lastName}`;
+            return `${rowData.borrower.firstName} ${rowData.borrower.lastName}`;
         };
 
         const booksBodyTemplate = (rowData: BorrowedItem) => {
@@ -398,15 +419,7 @@ export default function LibrarianDashboard() {
         };
 
         const dueDateBodyTemplate = (rowData: BorrowedItem) => {
-            return (
-                <div>
-                    {rowData.items.map((item, idx) => (
-                        <div key={idx} className="mb-1">
-                            {new Date(item.dueDate).toLocaleDateString()}
-                        </div>
-                    ))}
-                </div>
-            );
+            return new Date(rowData.dueDate).toLocaleDateString();
         };
 
         const actionBodyTemplate = (rowData: BorrowedItem) => {
@@ -431,8 +444,8 @@ export default function LibrarianDashboard() {
                 <DataTable value={borrowedItems} paginator rows={10} dataKey="_id" header={header} emptyMessage="No active loans." loading={loading}>
                     <Column body={userBodyTemplate} header="Borrower" sortable />
                     <Column body={booksBodyTemplate} header="Books" />
-                    <Column field="borrowDate" header="Borrowed On" body={(row) => new Date(row.borrowDate).toLocaleDateString()} sortable />
-                    <Column body={dueDateBodyTemplate} header="Due Date" />
+                    <Column field="issuedDate" header="Borrowed On" body={(row) => new Date(row.issuedDate).toLocaleDateString()} sortable />
+                    <Column body={dueDateBodyTemplate} header="Due Date" sortable />
                     <Column body={overdueBodyTemplate} header="Status" />
                     <Column body={actionBodyTemplate} header="Actions" style={{ width: '150px' }} />
                 </DataTable>

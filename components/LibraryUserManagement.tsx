@@ -164,6 +164,7 @@ export default function LibraryUserManagement() {
             const method = selectedLibraryUser._id ? 'PUT' : 'POST';
             const url = selectedLibraryUser._id ? `/api/library-users/${selectedLibraryUser._id}` : '/api/library-users';
 
+            setLoading(true);
             const response = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
@@ -188,6 +189,8 @@ export default function LibraryUserManagement() {
                 detail: 'Failed to save library user',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -202,6 +205,7 @@ export default function LibraryUserManagement() {
 
     const deleteLibraryUser = async (libraryUser: LibraryUser) => {
         try {
+            setLoading(true);
             const response = await fetch(`/api/library-users/${libraryUser._id}`, {
                 method: 'DELETE'
             });
@@ -223,6 +227,8 @@ export default function LibraryUserManagement() {
                 detail: 'Failed to delete library user',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -244,6 +250,7 @@ export default function LibraryUserManagement() {
         }
 
         try {
+            setLoading(true);
             const response = await fetch(`/api/library-users/${selectedUserForAction._id}/suspend`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -273,11 +280,14 @@ export default function LibraryUserManagement() {
                 detail: 'Failed to suspend user',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
     const activateUser = async (libraryUser: LibraryUser) => {
         try {
+            setLoading(true);
             const response = await fetch(`/api/library-users/${libraryUser._id}/activate`, {
                 method: 'POST'
             });
@@ -299,6 +309,8 @@ export default function LibraryUserManagement() {
                 detail: 'Failed to activate user',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -408,7 +420,7 @@ export default function LibraryUserManagement() {
                     setSuspensionReason('');
                 }}
             />
-            <Button label="Suspend" icon="pi pi-ban" severity="warning" onClick={suspendUser} disabled={!suspensionReason.trim()} />
+            <Button label="Suspend" icon="pi pi-ban" severity="warning" onClick={suspendUser} disabled={!suspensionReason.trim() || loading} loading={loading} />
         </div>
     );
 

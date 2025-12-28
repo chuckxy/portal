@@ -18,6 +18,10 @@ export async function GET(request: NextRequest) {
     try {
         await connectDB();
 
+        const { searchParams } = new URL(request.url);
+        const siteId = searchParams.get('site');
+        const siteFilter = siteId ? { site: new mongoose.Types.ObjectId(siteId) } : {};
+
         const daysAgo30 = new Date();
         daysAgo30.setDate(daysAgo30.getDate() - 30);
 
@@ -25,13 +29,14 @@ export async function GET(request: NextRequest) {
         const borrowTrends = await LibraryLending.aggregate([
             {
                 $match: {
-                    borrowDate: { $gte: daysAgo30 }
+                    issuedDate: { $gte: daysAgo30 },
+                    ...siteFilter
                 }
             },
             {
                 $group: {
                     _id: {
-                        $dateToString: { format: '%Y-%m-%d', date: '$borrowDate' }
+                        $dateToString: { format: '%Y-%m-%d', date: '$issuedDate' }
                     },
                     count: { $sum: 1 }
                 }
@@ -39,17 +44,19 @@ export async function GET(request: NextRequest) {
             { $sort: { _id: 1 } }
         ]);
 
-        // Get return trends
+        // Get return trends (count lendings with status returned)
         const returnTrends = await LibraryLending.aggregate([
             {
                 $match: {
-                    returnDate: { $gte: daysAgo30, $ne: null }
+                    status: 'returned',
+                    updatedAt: { $gte: daysAgo30 },
+                    ...siteFilter
                 }
             },
             {
                 $group: {
                     _id: {
-                        $dateToString: { format: '%Y-%m-%d', date: '$returnDate' }
+                        $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' }
                     },
                     count: { $sum: 1 }
                 }

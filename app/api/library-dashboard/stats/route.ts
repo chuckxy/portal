@@ -22,70 +22,137 @@ export async function GET(request: NextRequest) {
     try {
         await connectDB();
 
+        // Get site filter from query params
+        const { searchParams } = new URL(request.url);
+        const siteId = searchParams.get('site');
+
         // Get current date for time-based queries
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
 
-        // Total books
-        const totalBooks = await LibraryItem.countDocuments({ isActive: true });
+        // Build site filter for siteInventory
+        const siteInventoryMatch = siteId ? { 'siteInventory.site': new mongoose.Types.ObjectId(siteId) } : {};
 
-        // Calculate available books (sum of availableQuantity)
-        const availabilityAgg = await LibraryItem.aggregate([
-            { $match: { isActive: true } },
-            {
-                $project: {
-                    availableQty: {
-                        $sum: {
-                            $map: {
-                                input: '$siteInventory',
-                                as: 'inv',
-                                in: '$$inv.availableQuantity'
-                            }
-                        }
-                    }
-                }
-            },
+        // Total books (sum of all quantities for the specified site)
+        const totalBooksAgg = await LibraryItem.aggregate([
+            { $match: { isActive: true, ...siteInventoryMatch } },
+            { $unwind: '$siteInventory' },
+            ...(siteId ? [{ $match: { 'siteInventory.site': new mongoose.Types.ObjectId(siteId) } }] : []),
             {
                 $group: {
                     _id: null,
-                    totalAvailable: { $sum: '$availableQty' }
+                    totalBooks: { $sum: { $ifNull: ['$siteInventory.quantity', 0] } }
+                }
+            }
+        ]);
+        const totalBooks = totalBooksAgg[0]?.totalBooks || 0;
+
+        // Calculate available books (sum of availableQuantity for the specified site)
+        const availabilityAgg = await LibraryItem.aggregate([
+            { $match: { isActive: true, ...siteInventoryMatch } },
+            { $unwind: '$siteInventory' },
+            ...(siteId ? [{ $match: { 'siteInventory.site': new mongoose.Types.ObjectId(siteId) } }] : []),
+            {
+                $group: {
+                    _id: null,
+                    totalAvailable: { $sum: { $ifNull: ['$siteInventory.availableQuantity', 0] } }
                 }
             }
         ]);
 
         const availableBooks = availabilityAgg[0]?.totalAvailable || 0;
 
-        // Active borrowings
-        const borrowedBooks = await LibraryLending.countDocuments({
-            status: 'active',
-            'items.quantityReturned': { $lt: { $getField: 'quantityBorrowed' } }
-        });
+        // Build site filter for lending
+        const lendingFilter = siteId ? { site: new mongoose.Types.ObjectId(siteId) } : {};
 
-        // Overdue books
-        const overdueBooks = await LibraryLending.countDocuments({
-            status: 'active',
-            'items.dueDate': { $lt: new Date() },
-            'items.quantityReturned': { $lt: { $getField: 'quantityBorrowed' } }
-        });
+        // Active borrowings - count total books currently borrowed (not yet returned) for the site
+        const borrowedBooksAgg = await LibraryLending.aggregate([
+            {
+                $match: {
+                    status: { $in: ['active', 'overdue', 'partially_returned'] },
+                    ...lendingFilter
+                }
+            },
+            { $unwind: '$items' },
+            {
+                $project: {
+                    unreturned: { $subtract: ['$items.quantityIssued', '$items.quantityReturned'] }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalBorrowed: { $sum: '$unreturned' }
+                }
+            }
+        ]);
+        const borrowedBooks = borrowedBooksAgg[0]?.totalBorrowed || 0;
 
-        // Active users (people with borrowing history or active loans)
-        const activeUsers = await Person.countDocuments({
-            isActive: true,
-            $or: [{ 'roles.student': { $exists: true } }, { 'roles.staff': { $exists: true } }]
-        });
+        // Overdue books - count books past due date and not fully returned for the site
+        const overdueBooksAgg = await LibraryLending.aggregate([
+            {
+                $match: {
+                    status: { $in: ['active', 'overdue', 'partially_returned'] },
+                    dueDate: { $lt: new Date() },
+                    ...lendingFilter
+                }
+            },
+            { $unwind: '$items' },
+            {
+                $project: {
+                    unreturned: { $subtract: ['$items.quantityIssued', '$items.quantityReturned'] }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalOverdue: { $sum: '$unreturned' }
+                }
+            }
+        ]);
+        const overdueBooks = overdueBooksAgg[0]?.totalOverdue || 0;
 
-        // New acquisitions this month
-        const newAcquisitions = await LibraryItem.countDocuments({
-            'acquisitionInfo.dateAcquired': { $gte: startOfMonth }
-        });
+        // Active users - count unique borrowers with active or recent loans at this site
+        const activeUsersAgg = await LibraryLending.aggregate([
+            {
+                $match: {
+                    $or: [{ status: { $in: ['active', 'overdue', 'partially_returned'] } }, { issuedDate: { $gte: startOfMonth } }],
+                    ...lendingFilter
+                }
+            },
+            {
+                $group: {
+                    _id: '$borrower'
+                }
+            },
+            {
+                $count: 'total'
+            }
+        ]);
+        const activeUsers = activeUsersAgg[0]?.total || 0;
 
-        // Online books added (books with external provider)
-        const onlineBooksAdded = await LibraryItem.countDocuments({
-            'digitalContent.hasDigitalVersion': true,
-            'digitalContent.externalProvider': { $exists: true, $ne: null },
-            'acquisitionInfo.dateAcquired': { $gte: startOfMonth }
-        });
+        // New acquisitions this month - count unique books added this month at this site
+        const newAcquisitionsFilter = siteId
+            ? {
+                  createdAt: { $gte: startOfMonth },
+                  'siteInventory.site': new mongoose.Types.ObjectId(siteId)
+              }
+            : { createdAt: { $gte: startOfMonth } };
+        const newAcquisitions = await LibraryItem.countDocuments(newAcquisitionsFilter);
+
+        // Online books added this month - books from external providers added this month at this site
+        const onlineBooksFilter = siteId
+            ? {
+                  provider: { $in: ['Google Books', 'Open Library', 'DBooks', 'IArchive'] },
+                  createdAt: { $gte: startOfMonth },
+                  'siteInventory.site': new mongoose.Types.ObjectId(siteId)
+              }
+            : {
+                  provider: { $in: ['Google Books', 'Open Library', 'DBooks', 'IArchive'] },
+                  createdAt: { $gte: startOfMonth }
+              };
+        const onlineBooksAdded = await LibraryItem.countDocuments(onlineBooksFilter);
 
         // Reserved books
         const reservedBooks = 0; // TODO: Implement reservation system

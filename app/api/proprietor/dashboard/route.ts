@@ -15,6 +15,7 @@ let FeesConfiguration: any;
 let Expenditure: any;
 let Scholarship: any;
 let ExamScore: any;
+let DailyFeeCollection: any;
 
 try {
     Person = mongoose.models.Person || require('@/models/Person').default;
@@ -29,6 +30,7 @@ try {
     Expenditure = mongoose.models.Expenditure || require('@/models/Expenditure').default;
     Scholarship = mongoose.models.Scholarship || require('@/models/Scholarship').default;
     ExamScore = mongoose.models.ExamScore || require('@/models/ExamScore').default;
+    DailyFeeCollection = mongoose.models.DailyFeeCollection || require('@/models/DailyFeeCollection').default;
 } catch (error) {
     console.error('Error loading models:', error);
 }
@@ -70,13 +72,18 @@ export async function GET(request: NextRequest) {
 
         const currentAcademicTerm = currentMonth <= 3 ? 1 : currentMonth <= 7 ? 2 : 3;
 
+        // Get all sites for this school (needed for FeesPayment queries since it doesn't have school field)
+        const schoolSites = await SchoolSite.find({ school: schoolId }).lean();
+        const schoolSiteIds = schoolSites.map((site: any) => new mongoose.Types.ObjectId(site._id));
+
         // ============= FINANCIAL DATA =============
 
-        // Total income (all confirmed payments)
+        // Total income (all confirmed payments for this school's sites)
         const totalIncomeResult = await FeesPayment.aggregate([
             {
                 $match: {
-                    status: 'confirmed'
+                    status: 'confirmed',
+                    site: { $in: schoolSiteIds }
                 }
             },
             {
@@ -88,11 +95,23 @@ export async function GET(request: NextRequest) {
         ]);
         const totalIncome = totalIncomeResult.length > 0 ? totalIncomeResult[0].total : 0;
 
-        // Total expenses (paid + approved expenditures)
+        // Total daily collections (all time for this school)
+        const allDailyCollections = await DailyFeeCollection.find({
+            school: new mongoose.Types.ObjectId(schoolId as string)
+        }).lean();
+
+        const totalDailyCollectionsAllTime = allDailyCollections.reduce((sum, d) => {
+            const canteen = (d as any).canteenFeeAmount || 0;
+            const bus = (d as any).busFeeAmount || 0;
+            return sum + canteen + bus;
+        }, 0);
+
+        // Total expenses (paid + approved expenditures for this school)
         const totalExpensesResult = await Expenditure.aggregate([
             {
                 $match: {
-                    status: { $in: ['paid', 'approved'] }
+                    status: { $in: ['paid', 'approved'] },
+                    school: new mongoose.Types.ObjectId(schoolId as string)
                 }
             },
             {
@@ -104,16 +123,17 @@ export async function GET(request: NextRequest) {
         ]);
         const totalExpenses = totalExpensesResult.length > 0 ? totalExpensesResult[0].total : 0;
 
-        // Net cash flow
-        const netCashFlow = totalIncome - totalExpenses;
+        // Net cash flow (include daily collections in total income)
+        const netCashFlow = totalIncome + totalDailyCollectionsAllTime - totalExpenses;
 
-        // Revenue collected this term
+        // Revenue collected this term for this school
         const termRevenueResult = await FeesPayment.aggregate([
             {
                 $match: {
                     status: 'confirmed',
                     academicYear: currentAcademicYear,
-                    academicTerm: currentAcademicTerm
+                    academicTerm: currentAcademicTerm,
+                    site: { $in: schoolSiteIds }
                 }
             },
             {
@@ -125,14 +145,15 @@ export async function GET(request: NextRequest) {
         ]);
         const collectedThisTerm = termRevenueResult.length > 0 ? termRevenueResult[0].total : 0;
 
-        // Revenue collected this month
+        // Revenue collected this month for this school
         const startOfMonth = new Date(currentYear, currentMonth, 1);
         const endOfMonth = new Date(currentYear, currentMonth + 1, 0);
         const monthRevenueResult = await FeesPayment.aggregate([
             {
                 $match: {
                     status: 'confirmed',
-                    paymentDate: { $gte: startOfMonth, $lte: endOfMonth }
+                    datePaid: { $gte: startOfMonth, $lte: endOfMonth },
+                    site: { $in: schoolSiteIds }
                 }
             },
             {
@@ -144,28 +165,42 @@ export async function GET(request: NextRequest) {
         ]);
         const collectedThisMonth = monthRevenueResult.length > 0 ? monthRevenueResult[0].total : 0;
 
-        // Pending payments
+        // Daily collections (canteen and bus fees) for this month
+        const dailyCollections = await DailyFeeCollection.find({
+            school: new mongoose.Types.ObjectId(schoolId as string),
+            collectionDate: { $gte: startOfMonth, $lte: endOfMonth }
+        }).lean();
+
+        const totalDailyCollections = dailyCollections.reduce((sum, d) => {
+            const canteen = (d as any).canteenFeeAmount || 0;
+            const bus = (d as any).busFeeAmount || 0;
+            return sum + canteen + bus;
+        }, 0);
+
+        // Pending payments (use expected amount for pending, amountPaid might be 0)
         const pendingPaymentsResult = await FeesPayment.aggregate([
             {
                 $match: {
-                    status: 'pending'
+                    status: 'pending',
+                    site: { $in: schoolSiteIds }
                 }
             },
             {
                 $group: {
                     _id: null,
-                    total: { $sum: '$amountPaid' }
+                    total: { $sum: { $ifNull: ['$expectedAmount', '$amountPaid'] } }
                 }
             }
         ]);
         const pendingPayments = pendingPaymentsResult.length > 0 ? pendingPaymentsResult[0].total : 0;
 
-        // Total scholarships
+        // Total scholarships for this school
         const totalScholarshipsResult = await Scholarship.aggregate([
             {
                 $match: {
                     academicYear: currentAcademicYear,
-                    status: 'active'
+                    status: 'active',
+                    school: new mongoose.Types.ObjectId(schoolId as string)
                 }
             },
             {
@@ -177,9 +212,10 @@ export async function GET(request: NextRequest) {
         ]);
         const totalScholarships = totalScholarshipsResult.length > 0 ? totalScholarshipsResult[0].total : 0;
 
-        // Pending expenditure approvals
+        // Pending expenditure approvals for this school
         const pendingApprovals = await Expenditure.countDocuments({
-            status: 'pending'
+            status: 'pending',
+            school: new mongoose.Types.ObjectId(schoolId as string)
         });
 
         // Calculate outstanding receivables and critical debtors
@@ -424,7 +460,11 @@ export async function GET(request: NextRequest) {
 
         // ============= RECENT PAYMENTS =============
 
-        const recentPayments = await FeesPayment.find().populate('student', 'firstName middleName lastName fullName').sort({ datePaid: -1 }).limit(20).lean();
+        const recentPayments = await FeesPayment.find({ site: { $in: schoolSiteIds } })
+            .populate('student', 'firstName middleName lastName fullName')
+            .sort({ datePaid: -1 })
+            .limit(20)
+            .lean();
 
         // ============= STATISTICS =============
 
@@ -443,12 +483,13 @@ export async function GET(request: NextRequest) {
                 school: proprietor.school
             },
             financial: {
-                totalIncome,
+                totalIncome: totalIncome + totalDailyCollectionsAllTime,
                 totalExpenses,
                 netCashFlow,
                 pendingPayments,
                 collectedThisTerm,
                 collectedThisMonth,
+                totalDailyCollections,
                 outstandingReceivables,
                 totalScholarships,
                 criticalDebtors,

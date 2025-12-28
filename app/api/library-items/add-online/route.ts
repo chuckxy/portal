@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
             authors,
             isbn,
             publisher,
-            publishDate: publishedDate,
+            publicationDate: publishedDate,
             edition: '',
             language: 'English', // Default
             description,
@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
                 pages: undefined
             },
             coverImagePath,
+            provider: bookData.provider || 'Other',
             digitalContent: {
                 hasDigitalVersion: true,
                 digitalFormats: ['online'],
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
                 externalProvider: bookData.provider,
                 accessType: 'public'
             },
-            siteInventory: [], // No physical inventory for online books
+            siteInventory: bookData.siteInventory || [],
             acquisitionInfo: {
                 source: `Online - ${bookData.provider}`,
                 dateAcquired: new Date(),

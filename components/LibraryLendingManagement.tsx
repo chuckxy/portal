@@ -273,6 +273,7 @@ export default function LibraryLendingManagement() {
 
     const submitIssue = async () => {
         try {
+            setLoading(true);
             const response = await fetch('/api/library-lending', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -297,6 +298,8 @@ export default function LibraryLendingManagement() {
                 detail: error.message,
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -304,6 +307,7 @@ export default function LibraryLendingManagement() {
         if (!selectedLending || returnData.itemIndex < 0) return;
 
         try {
+            setLoading(true);
             const response = await fetch(`/api/library-lending/${selectedLending._id}/return`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -328,6 +332,8 @@ export default function LibraryLendingManagement() {
                 detail: 'Failed to return item',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -335,6 +341,7 @@ export default function LibraryLendingManagement() {
         if (!selectedLending || !renewData.newDueDate) return;
 
         try {
+            setLoading(true);
             const response = await fetch(`/api/library-lending/${selectedLending._id}/renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -359,6 +366,8 @@ export default function LibraryLendingManagement() {
                 detail: 'Failed to renew',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -366,6 +375,7 @@ export default function LibraryLendingManagement() {
         if (!selectedLending || newFine.amount <= 0) return;
 
         try {
+            setLoading(true);
             const response = await fetch(`/api/library-lending/${selectedLending._id}/fine`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -390,11 +400,14 @@ export default function LibraryLendingManagement() {
                 detail: 'Failed to add fine',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
     const markFinePaid = async (lendingId: string, fineIndex: number) => {
         try {
+            setLoading(true);
             const response = await fetch(`/api/library-lending/${lendingId}/fine/${fineIndex}/pay`, {
                 method: 'POST'
             });
@@ -416,6 +429,8 @@ export default function LibraryLendingManagement() {
                 detail: 'Failed to mark fine as paid',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -546,7 +561,7 @@ export default function LibraryLendingManagement() {
                         disabled={(issueStep === 0 && !newIssue.borrower) || (issueStep === 1 && newIssue.items.length === 0) || (issueStep === 2 && (!newIssue.site || !newIssue.dueDate))}
                     />
                 )}
-                {issueStep === 3 && <Button label="Issue Items" icon="pi pi-check" onClick={submitIssue} />}
+                {issueStep === 3 && <Button label="Issue Items" icon="pi pi-check" onClick={submitIssue} loading={loading} disabled={loading} />}
             </div>
         </div>
     );
@@ -895,7 +910,7 @@ export default function LibraryLendingManagement() {
                 footer={
                     <div className="flex justify-content-end gap-2">
                         <Button label="Cancel" icon="pi pi-times" text onClick={() => setReturnDialogVisible(false)} />
-                        <Button label="Submit Return" icon="pi pi-check" onClick={submitReturn} disabled={returnData.itemIndex < 0 || returnData.quantity <= 0} />
+                        <Button label="Submit Return" icon="pi pi-check" onClick={submitReturn} disabled={returnData.itemIndex < 0 || returnData.quantity <= 0 || loading} loading={loading} />
                     </div>
                 }
                 onHide={() => setReturnDialogVisible(false)}
@@ -963,7 +978,7 @@ export default function LibraryLendingManagement() {
                 footer={
                     <div className="flex justify-content-end gap-2">
                         <Button label="Cancel" icon="pi pi-times" text onClick={() => setRenewDialogVisible(false)} />
-                        <Button label="Renew" icon="pi pi-check" onClick={submitRenewal} disabled={!renewData.newDueDate} />
+                        <Button label="Renew" icon="pi pi-check" onClick={submitRenewal} disabled={!renewData.newDueDate || loading} loading={loading} />
                     </div>
                 }
                 onHide={() => setRenewDialogVisible(false)}
@@ -995,7 +1010,7 @@ export default function LibraryLendingManagement() {
                 footer={
                     <div className="flex justify-content-end gap-2">
                         <Button label="Cancel" icon="pi pi-times" text onClick={() => setFineDialogVisible(false)} />
-                        <Button label="Add Fine" icon="pi pi-check" severity="danger" onClick={submitFine} disabled={newFine.amount <= 0} />
+                        <Button label="Add Fine" icon="pi pi-check" severity="danger" onClick={submitFine} disabled={newFine.amount <= 0 || loading} loading={loading} />
                     </div>
                 }
                 onHide={() => setFineDialogVisible(false)}

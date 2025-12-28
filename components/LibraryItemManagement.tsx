@@ -24,6 +24,7 @@ import { TabView, TabPanel } from 'primereact/tabview';
 import { Image } from 'primereact/image';
 import { Chip } from 'primereact/chip';
 import { ProgressBar } from 'primereact/progressbar';
+import { useAuth } from '@/context/AuthContext';
 
 interface Author {
     firstName?: string;
@@ -111,6 +112,7 @@ const emptyLibraryItem: Partial<LibraryItem> = {
 };
 
 export default function LibraryItemManagement() {
+    const { user } = useAuth();
     const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
     const [sites, setSites] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -229,10 +231,33 @@ export default function LibraryItemManagement() {
             const method = selectedItem._id ? 'PUT' : 'POST';
             const url = selectedItem._id ? `/api/library-items/${selectedItem._id}` : '/api/library-items';
 
+            // Add siteInventory for new items
+            const itemToSave = { ...selectedItem };
+            if (!selectedItem._id && user?.school && user?.schoolSite) {
+                itemToSave.siteInventory = [
+                    {
+                        school: user.school,
+                        site: user.schoolSite,
+                        quantity: 1,
+                        availableQuantity: 1,
+                        dateAdded: new Date(),
+                        stockAdjustments: [
+                            {
+                                adjustmentType: 'addition',
+                                quantity: 1,
+                                remarks: 'Initial inventory',
+                                adjustedBy: user.id,
+                                date: new Date()
+                            }
+                        ]
+                    }
+                ];
+            }
+            setLoading(true);
             const response = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(selectedItem)
+                body: JSON.stringify(itemToSave)
             });
 
             if (!response.ok) throw new Error('Failed to save library item');
@@ -253,6 +278,8 @@ export default function LibraryItemManagement() {
                 detail: 'Failed to save library item',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -267,6 +294,7 @@ export default function LibraryItemManagement() {
 
     const deleteItem = async (item: LibraryItem) => {
         try {
+            setLoading(true);
             const response = await fetch(`/api/library-items/${item._id}`, {
                 method: 'DELETE'
             });
@@ -288,6 +316,8 @@ export default function LibraryItemManagement() {
                 detail: 'Failed to delete library item',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -303,6 +333,7 @@ export default function LibraryItemManagement() {
         }
 
         try {
+            setLoading(true);
             const response = await fetch(`/api/library-items/${selectedItemForStock._id}/adjust-stock`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -327,6 +358,8 @@ export default function LibraryItemManagement() {
                 detail: 'Failed to adjust stock',
                 life: 3000
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -458,14 +491,14 @@ export default function LibraryItemManagement() {
     const dialogFooter = (
         <div className="flex justify-content-end gap-2">
             <Button label="Cancel" icon="pi pi-times" text onClick={hideDialog} />
-            <Button label="Save" icon="pi pi-check" onClick={saveLibraryItem} disabled={!selectedItem.title || !selectedItem.itemType} />
+            <Button label={selectedItem._id ? 'Update' : 'Save'} icon="pi pi-check" onClick={saveLibraryItem} disabled={!selectedItem.title || !selectedItem.itemType || loading} loading={loading} />
         </div>
     );
 
     const stockDialogFooter = (
         <div className="flex justify-content-end gap-2">
             <Button label="Cancel" icon="pi pi-times" text onClick={() => setStockDialogVisible(false)} />
-            <Button label="Submit" icon="pi pi-check" onClick={submitStockAdjustment} disabled={!stockAdjustment.siteId || stockAdjustment.quantity <= 0} />
+            <Button label="Submit" icon="pi pi-check" onClick={submitStockAdjustment} disabled={!stockAdjustment.siteId || stockAdjustment.quantity <= 0 || loading} loading={loading} />
         </div>
     );
 
