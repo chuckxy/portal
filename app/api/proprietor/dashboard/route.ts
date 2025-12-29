@@ -237,31 +237,21 @@ export async function GET(request: NextRequest) {
             const currentClass = student.studentInfo?.currentClass;
             if (!currentClass) continue;
 
-            // Find fee configuration
-            let feeConfig: any = await FeesConfiguration.findOne({
+            // Find fee configuration (check for the academic year, not term-specific)
+            const feeConfig: any = await FeesConfiguration.findOne({
                 class: currentClass._id || currentClass,
                 academicYear: currentAcademicYear,
-                academicTerm: currentAcademicTerm,
                 isActive: true
             }).lean();
-
-            // Fallback to any config for the year
-            if (!feeConfig) {
-                feeConfig = await FeesConfiguration.findOne({
-                    class: currentClass._id || currentClass,
-                    academicYear: currentAcademicYear,
-                    isActive: true
-                }).lean();
-            }
 
             if (feeConfig) {
                 expectedFees += feeConfig.totalAmount || 0;
 
-                // Get payments for this student
+                // Get only confirmed payments for this student
                 const payments: any[] = await FeesPayment.find({
                     student: student._id,
                     academicYear: currentAcademicYear,
-                    academicTerm: currentAcademicTerm
+                    status: 'confirmed'
                 }).lean();
 
                 const totalPaid = payments.reduce((sum, payment) => sum + (payment.amountPaid || 0), 0);
