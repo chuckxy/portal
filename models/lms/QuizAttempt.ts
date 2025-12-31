@@ -44,6 +44,7 @@ export interface IQuizAttempt extends Document {
     updatedAt: Date;
 }
 
+// @ts-ignore
 const ViolationSchema = new Schema<IViolation>(
     {
         type: {
@@ -62,6 +63,7 @@ const ViolationSchema = new Schema<IViolation>(
     { _id: false }
 );
 
+// @ts-ignore
 const QuizAttemptSchema = new Schema<IQuizAttempt>(
     {
         quizId: {
