@@ -75,6 +75,8 @@ const AppMenu = () => {
                 { label: 'Chapters', icon: 'pi pi-fw pi-list', to: '/lms/chapters' },
                 { label: 'Lessons', icon: 'pi pi-fw pi-play-circle', to: '/lms/lessons' },
                 { label: 'Quizzes', icon: 'pi pi-fw pi-question-circle', to: '/lms/quizzes' },
+                { label: 'Take Quiz', icon: 'pi pi-fw pi-pencil', to: '/lms/quizzes/take' },
+                { label: 'Quiz Reviews', icon: 'pi pi-fw pi-check-square', to: '/lms/quizzes/review' },
                 { label: 'Enrollments', icon: 'pi pi-fw pi-users', to: '/lms/enrollment' },
                 { label: 'Announcements', icon: 'pi pi-fw pi-megaphone', to: '/lms/announcements' }
             ]

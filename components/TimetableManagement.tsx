@@ -140,7 +140,7 @@ export default function TimetableManagement() {
         schoolEndTime: '15:30',
         periodDuration: 40,
         numberOfPeriods: 8,
-        breaks: DEFAULT_BREAKS.map((b) => ({ ...b, enabled: b.description === 'Mid-Morning Break' || b.description === 'Lunch Break' }))
+        breaks: []
     });
 
     // Form states - Phase 2: Schedule Building
@@ -1010,27 +1010,133 @@ export default function TimetableManagement() {
 
             <div className="col-12">
                 <Divider />
-                <h4>Quick Add Common Breaks</h4>
+                <div className="flex justify-content-between align-items-center">
+                    <h4>Breaks & Activities</h4>
+                    <Button
+                        label="Add Custom Break"
+                        icon="pi pi-plus"
+                        className="p-button-sm p-button-outlined"
+                        onClick={() => {
+                            const newBreak = {
+                                enabled: true,
+                                description: 'Custom Break',
+                                timeStart: '10:00',
+                                timeEnd: '10:15',
+                                activityType: 'break' as ActivityType
+                            };
+                            setSchoolDay({ ...schoolDay, breaks: [...schoolDay.breaks, newBreak] });
+                        }}
+                    />
+                </div>
             </div>
 
             {schoolDay.breaks.map((breakItem, index) => (
-                <div key={index} className="col-12 md:col-6">
-                    <div className="flex align-items-center gap-3 p-3 surface-100 border-round">
-                        <Checkbox
-                            checked={breakItem.enabled}
-                            onChange={(e) => {
-                                const newBreaks = [...schoolDay.breaks];
-                                newBreaks[index].enabled = e.checked || false;
-                                setSchoolDay({ ...schoolDay, breaks: newBreaks });
-                            }}
-                        />
-                        <div className="flex-1">
-                            <div className="font-semibold">{breakItem.description}</div>
-                            <small className="text-500">
-                                {breakItem.timeStart} - {breakItem.timeEnd}
-                            </small>
+                <div key={index} className="col-12">
+                    <Card className="surface-50">
+                        <div className="grid">
+                            <div className="col-12 flex align-items-center gap-2">
+                                <Checkbox
+                                    checked={breakItem.enabled}
+                                    onChange={(e) => {
+                                        const newBreaks = [...schoolDay.breaks];
+                                        newBreaks[index].enabled = e.checked || false;
+                                        setSchoolDay({ ...schoolDay, breaks: newBreaks });
+                                    }}
+                                />
+                                <span className="font-semibold text-lg">{breakItem.enabled ? 'Enabled' : 'Disabled'}</span>
+                                <div className="ml-auto">
+                                    <Button
+                                        icon="pi pi-trash"
+                                        className="p-button-text p-button-danger p-button-sm"
+                                        onClick={() => {
+                                            const newBreaks = schoolDay.breaks.filter((_, i) => i !== index);
+                                            setSchoolDay({ ...schoolDay, breaks: newBreaks });
+                                        }}
+                                        tooltip="Remove this break"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="col-12 md:col-6">
+                                <label className="block mb-2">Description</label>
+                                <InputText
+                                    value={breakItem.description}
+                                    onChange={(e) => {
+                                        const newBreaks = [...schoolDay.breaks];
+                                        newBreaks[index].description = e.target.value;
+                                        setSchoolDay({ ...schoolDay, breaks: newBreaks });
+                                    }}
+                                    className="w-full"
+                                    placeholder="e.g., Morning Break"
+                                    disabled={!breakItem.enabled}
+                                />
+                            </div>
+
+                            <div className="col-12 md:col-6">
+                                <label className="block mb-2">Activity Type</label>
+                                <Dropdown
+                                    value={breakItem.activityType}
+                                    options={[
+                                        { label: 'Break', value: 'break' },
+                                        { label: 'Lunch', value: 'lunch' },
+                                        { label: 'Assembly', value: 'assembly' },
+                                        { label: 'Other', value: 'other' }
+                                    ]}
+                                    onChange={(e) => {
+                                        const newBreaks = [...schoolDay.breaks];
+                                        newBreaks[index].activityType = e.value;
+                                        setSchoolDay({ ...schoolDay, breaks: newBreaks });
+                                    }}
+                                    className="w-full"
+                                    disabled={!breakItem.enabled}
+                                />
+                            </div>
+
+                            <div className="col-12 md:col-6">
+                                <label className="block mb-2">Start Time</label>
+                                <InputText
+                                    type="time"
+                                    value={breakItem.timeStart}
+                                    onChange={(e) => {
+                                        const newBreaks = [...schoolDay.breaks];
+                                        newBreaks[index].timeStart = e.target.value;
+                                        setSchoolDay({ ...schoolDay, breaks: newBreaks });
+                                    }}
+                                    className="w-full"
+                                    disabled={!breakItem.enabled}
+                                />
+                            </div>
+
+                            <div className="col-12 md:col-6">
+                                <label className="block mb-2">End Time</label>
+                                <InputText
+                                    type="time"
+                                    value={breakItem.timeEnd}
+                                    onChange={(e) => {
+                                        const newBreaks = [...schoolDay.breaks];
+                                        newBreaks[index].timeEnd = e.target.value;
+                                        setSchoolDay({ ...schoolDay, breaks: newBreaks });
+                                    }}
+                                    className="w-full"
+                                    disabled={!breakItem.enabled}
+                                />
+                            </div>
+
+                            <div className="col-12">
+                                <small className="text-500">
+                                    Duration:{' '}
+                                    {(() => {
+                                        const start = breakItem.timeStart.split(':').map(Number);
+                                        const end = breakItem.timeEnd.split(':').map(Number);
+                                        const startMins = start[0] * 60 + start[1];
+                                        const endMins = end[0] * 60 + end[1];
+                                        return endMins - startMins;
+                                    })()}{' '}
+                                    minutes
+                                </small>
+                            </div>
                         </div>
-                    </div>
+                    </Card>
                 </div>
             ))}
         </div>

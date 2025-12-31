@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
         await connectToDatabase();
 
         const { searchParams } = new URL(request.url);
+
         const subjectId = searchParams.get('subjectId');
         const moduleId = searchParams.get('moduleId');
         const chapterId = searchParams.get('chapterId');

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { DataTable } from 'primereact/datatable';
+import { DataTable, DataTableSelectionMultipleChangeEvent } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -19,290 +19,30 @@ import { Badge } from 'primereact/badge';
 import { Checkbox } from 'primereact/checkbox';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { Divider } from 'primereact/divider';
-import { OrderList } from 'primereact/orderlist';
 import { RadioButton } from 'primereact/radiobutton';
+import { FileUpload, FileUploadHandlerEvent } from 'primereact/fileupload';
+import { ProgressBar } from 'primereact/progressbar';
+import { Steps } from 'primereact/steps';
 import { useAuth } from '@/context/AuthContext';
 import { ICourseModule } from '@/models/lms/CourseModule';
 import { IChapter } from '@/models/lms/Chapter';
 import { ILesson } from '@/models/lms/Lesson';
 
-// Types
-type QuizType = 'lesson' | 'chapter' | 'module' | 'course';
-type QuestionType = 'single_choice_radio' | 'single_choice_dropdown' | 'multiple_choice' | 'picture_choice' | 'fill_blanks' | 'matching' | 'matching_text' | 'free_text';
-type ShowAnswersAfter = 'immediately' | 'after_submission' | 'after_deadline' | 'never';
-
-interface Subject {
-    _id: string;
-    name: string;
-    code: string;
-}
-
-interface Person {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    photoLink?: string;
-}
-
-interface QuestionOption {
-    id: string;
-    optionLabel: string; // A, B, C, D...
-    text: string;
-    imageUrl?: string;
-    isCorrect: boolean;
-    optionPoints: number;
-    matchingValue?: string; // For matching questions
-}
-
-interface MatchingPair {
-    id: string;
-    left: string;
-    right: string;
-}
-
-interface QuizQuestion {
-    _id?: string;
-    quizId: string;
-    schoolSiteId: string;
-    questionNumber: number;
-    questionText: string;
-    questionType: QuestionType;
-    questionOptions: QuestionOption[];
-    matchingPairs: MatchingPair[];
-    correctOptions: string[];
-    correctText?: string;
-    points: number;
-    isRequired: boolean;
-    explanation?: string;
-    imageUrl?: string;
-    audioUrl?: string;
-    sortOrder: number;
-    isActive: boolean;
-}
-
-interface Quiz {
-    _id?: string;
-    title: string;
-    description?: string;
-    subjectId: string | Subject;
-    moduleId: string | ICourseModule;
-    chapterId: string | IChapter;
-    lessonId: string | ILesson;
-    schoolSiteId: string;
-    addedBy: string | Person;
-    quizType: QuizType;
-    startDate?: string;
-    endDate?: string;
-    totalMarks: number;
-    passingMarks: number;
-    timeLimit?: number;
-    maxAttempts: number;
-    shuffleQuestions: boolean;
-    shuffleOptions: boolean;
-    showCorrectAnswers: boolean;
-    showCorrectAnswersAfter: ShowAnswersAfter;
-    isPublished: boolean;
-    publishedAt?: string;
-    isActive: boolean;
-    questionCount?: number;
-    attemptCount?: number;
-    createdAt?: string;
-}
-
-interface DropdownOption {
-    label: string;
-    value: string;
-}
-
-const quizTypeOptions: DropdownOption[] = [
-    { label: '📖 Lesson Quiz', value: 'lesson' },
-    { label: '📚 Chapter Quiz', value: 'chapter' },
-    { label: '📦 Module Quiz', value: 'module' },
-    { label: '🎓 Course Quiz', value: 'course' }
-];
-
-const showAnswersOptions: DropdownOption[] = [
-    { label: 'Immediately', value: 'immediately' },
-    { label: 'After Submission', value: 'after_submission' },
-    { label: 'After Deadline', value: 'after_deadline' },
-    { label: 'Never', value: 'never' }
-];
-
-// Enhanced Quiz Type Options with Icons and Descriptions
-interface QuizTypeOptionEnhanced {
-    label: string;
-    value: QuizType;
-    icon: string;
-    description: string;
-    color: string;
-}
-
-const quizTypesArray: QuizTypeOptionEnhanced[] = [
-    {
-        label: 'Lesson Quiz',
-        value: 'lesson',
-        icon: 'pi pi-file',
-        description: 'Quiz for a specific lesson',
-        color: 'blue'
-    },
-    {
-        label: 'Chapter Quiz',
-        value: 'chapter',
-        icon: 'pi pi-book',
-        description: 'Quiz covering an entire chapter',
-        color: 'green'
-    },
-    {
-        label: 'Module Quiz',
-        value: 'module',
-        icon: 'pi pi-folder',
-        description: 'Comprehensive module assessment',
-        color: 'orange'
-    },
-    {
-        label: 'Course Quiz',
-        value: 'course',
-        icon: 'pi pi-graduation-cap',
-        description: 'Final course examination',
-        color: 'purple'
-    }
-];
-
-// Enhanced Show Answers Options
-interface ShowAnswersOptionEnhanced {
-    label: string;
-    value: ShowAnswersAfter;
-    icon: string;
-    description: string;
-}
-
-const showAnswersOptionsEnhanced: ShowAnswersOptionEnhanced[] = [
-    {
-        label: 'Immediately',
-        value: 'immediately',
-        icon: 'pi pi-bolt',
-        description: 'Show answers right after each question'
-    },
-    {
-        label: 'After Submission',
-        value: 'after_submission',
-        icon: 'pi pi-check-circle',
-        description: 'Show answers after quiz is submitted'
-    },
-    {
-        label: 'After Deadline',
-        value: 'after_deadline',
-        icon: 'pi pi-calendar-times',
-        description: 'Show answers after quiz deadline passes'
-    },
-    {
-        label: 'Never',
-        value: 'never',
-        icon: 'pi pi-eye-slash',
-        description: 'Never reveal correct answers'
-    }
-];
-
-// Enhanced Question Types with Icons and Descriptions
-interface QuestionTypeOption {
-    label: string;
-    value: QuestionType;
-    icon: string;
-    description: string;
-    hasOptions: boolean;
-    hasCorrectOption: boolean;
-    hasMatching: boolean;
-}
-
-const questionTypesArray: QuestionTypeOption[] = [
-    {
-        label: 'Single Choice (Radio)',
-        value: 'single_choice_radio',
-        icon: 'pi pi-circle',
-        description: 'Select one correct answer from radio buttons',
-        hasOptions: true,
-        hasCorrectOption: true,
-        hasMatching: false
-    },
-    {
-        label: 'Single Choice (Dropdown)',
-        value: 'single_choice_dropdown',
-        icon: 'pi pi-chevron-circle-down',
-        description: 'Select one correct answer from a dropdown list',
-        hasOptions: true,
-        hasCorrectOption: true,
-        hasMatching: false
-    },
-    {
-        label: 'Multiple Choice',
-        value: 'multiple_choice',
-        icon: 'pi pi-check-square',
-        description: 'Select multiple correct answers',
-        hasOptions: true,
-        hasCorrectOption: true,
-        hasMatching: false
-    },
-    {
-        label: 'Picture Choice',
-        value: 'picture_choice',
-        icon: 'pi pi-image',
-        description: 'Select answer(s) from image options',
-        hasOptions: true,
-        hasCorrectOption: true,
-        hasMatching: false
-    },
-    {
-        label: 'Fill in the Blanks',
-        value: 'fill_blanks',
-        icon: 'pi pi-server',
-        description: 'Use [a], [b], [c] notation for blanks',
-        hasOptions: true,
-        hasCorrectOption: false,
-        hasMatching: false
-    },
-    {
-        label: 'Matching',
-        value: 'matching',
-        icon: 'pi pi-arrow-right-arrow-left',
-        description: 'Match items from left column to right column',
-        hasOptions: true,
-        hasCorrectOption: false,
-        hasMatching: true
-    },
-    {
-        label: 'Matching (Text)',
-        value: 'matching_text',
-        icon: 'pi pi-link',
-        description: 'Type matching answers for items',
-        hasOptions: true,
-        hasCorrectOption: false,
-        hasMatching: true
-    },
-    {
-        label: 'Free Text',
-        value: 'free_text',
-        icon: 'pi pi-pencil',
-        description: 'Open-ended text response',
-        hasOptions: false,
-        hasCorrectOption: false,
-        hasMatching: false
-    }
-];
-
-// Utility function to convert number to letter (0 -> A, 1 -> B, etc.)
-const numberToLetter = (num: number): string => {
-    return String.fromCharCode(65 + num);
-};
-
-interface LMSQuizManagementProps {
-    subjectId?: string;
-    lessonId?: string;
-    embedded?: boolean;
-}
+// Import from extracted modules
+import { QuizType, QuestionType, Subject, Person, QuestionOption, MatchingPair, QuizQuestion, Quiz, QuestionTypeOption, LMSQuizManagementProps } from '@/lib/lms/quiz-types';
+import { quizTypeOptions, showAnswersOptions, quizTypesArray, showAnswersOptionsEnhanced, questionTypesArray } from '@/lib/lms/quiz-constants';
+import { numberToLetter, parseCSVQuestions, parseJSONQuestions, createEmptyQuiz, createEmptyQuestion, reindexOptions } from '@/lib/lms/quiz-utils';
+import { downloadCSVTemplate, downloadJSONTemplate } from '@/lib/lms/quiz-templates';
 
 const LMSQuizManagement: React.FC<LMSQuizManagementProps> = ({ subjectId: propSubjectId, lessonId: propLessonId, embedded = false }) => {
     const { user } = useAuth();
     const toastRef = useRef<Toast>(null);
+
+    // Helper to get empty quiz with user context
+    const getEmptyQuiz = (): Quiz => createEmptyQuiz(user?.schoolSite || '', user?.id || '', propSubjectId, propLessonId);
+
+    // Helper to get empty question with quiz context
+    const getEmptyQuestion = (quizId: string): QuizQuestion => createEmptyQuestion(quizId, user?.schoolSite || '');
 
     // Quiz State
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -329,54 +69,26 @@ const LMSQuizManagement: React.FC<LMSQuizManagementProps> = ({ subjectId: propSu
     const [globalFilterValue, setGlobalFilterValue] = useState('');
     const [selectedQuizType, setSelectedQuizType] = useState<string>('');
 
-    function getEmptyQuiz(): Quiz {
-        return {
-            title: '',
-            description: '',
-            subjectId: propSubjectId || '',
-            moduleId: '',
-            chapterId: '',
-            lessonId: propLessonId || '',
-            schoolSiteId: user?.schoolSite || '',
-            addedBy: user?.id || '',
-            quizType: 'lesson',
-            totalMarks: 0,
-            passingMarks: 0,
-            timeLimit: 30,
-            maxAttempts: 1,
-            shuffleQuestions: false,
-            shuffleOptions: false,
-            showCorrectAnswers: true,
-            showCorrectAnswersAfter: 'after_submission',
-            isPublished: false,
-            isActive: true
-        };
-    }
+    // Upload State
+    const [uploadDialogVisible, setUploadDialogVisible] = useState(false);
+    const [uploadStep, setUploadStep] = useState(0);
+    const [uploadedQuestions, setUploadedQuestions] = useState<QuizQuestion[]>([]);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+    const [uploadTargetQuiz, setUploadTargetQuiz] = useState<Quiz | null>(null);
+    const fileUploadRef = useRef<FileUpload>(null);
 
-    function getEmptyQuestion(quizId: string): QuizQuestion {
-        return {
-            quizId,
-            schoolSiteId: user?.schoolSite || '',
-            questionNumber: 1,
-            questionText: '',
-            questionType: 'single_choice_radio',
-            questionOptions: [
-                { id: '1', optionLabel: 'A', text: '', isCorrect: false, optionPoints: 0 },
-                { id: '2', optionLabel: 'B', text: '', isCorrect: false, optionPoints: 0 },
-                { id: '3', optionLabel: 'C', text: '', isCorrect: false, optionPoints: 0 },
-                { id: '4', optionLabel: 'D', text: '', isCorrect: false, optionPoints: 0 }
-            ],
-            matchingPairs: [],
-            correctOptions: [],
-            points: 1,
-            isRequired: true,
-            sortOrder: 1,
-            isActive: true
-        };
-    }
+    // Question Bank State
+    const [questionBankDialogVisible, setQuestionBankDialogVisible] = useState(false);
+    const [questionBank, setQuestionBank] = useState<QuizQuestion[]>([]);
+    const [selectedBankQuestions, setSelectedBankQuestions] = useState<QuizQuestion[]>([]);
+    const [questionBankLoading, setQuestionBankLoading] = useState(false);
+    const [questionBankFilter, setQuestionBankFilter] = useState('');
+    const [questionBankTypeFilter, setQuestionBankTypeFilter] = useState<string>('');
+    const [questionBankTargetQuiz, setQuestionBankTargetQuiz] = useState<Quiz | null>(null);
 
     // Get current question type config
-    const getCurrentQuestionType = (): QuestionTypeOption | undefined => {
+    const getCurrentQuestionType = () => {
         return questionTypesArray.find((t) => t.value === questionFormData.questionType);
     };
 
@@ -815,6 +527,242 @@ const LMSQuizManagement: React.FC<LMSQuizManagementProps> = ({ subjectId: propSu
         });
     };
 
+    // ========================================================================
+    // UPLOAD FUNCTIONALITY
+    // ========================================================================
+
+    const openUploadDialog = (quiz: Quiz) => {
+        setUploadTargetQuiz(quiz);
+        setUploadedQuestions([]);
+        setUploadErrors([]);
+        setUploadProgress(0);
+        setUploadStep(0);
+        setUploadDialogVisible(true);
+    };
+
+    const hideUploadDialog = () => {
+        setUploadDialogVisible(false);
+        setUploadTargetQuiz(null);
+        setUploadedQuestions([]);
+        setUploadErrors([]);
+        setUploadProgress(0);
+        setUploadStep(0);
+        fileUploadRef.current?.clear();
+    };
+
+    const handleFileUpload = async (event: FileUploadHandlerEvent) => {
+        const file = event.files[0];
+        if (!file) return;
+
+        setUploadProgress(10);
+        const reader = new FileReader();
+
+        reader.onload = async (e) => {
+            const content = e.target?.result as string;
+            setUploadProgress(30);
+
+            let result: { questions: QuizQuestion[]; errors: string[] };
+            const targetQuizId = uploadTargetQuiz?._id || '';
+            const schoolSiteId = user?.schoolSite || '';
+
+            if (file.name.endsWith('.json')) {
+                result = parseJSONQuestions(content, targetQuizId, schoolSiteId);
+            } else if (file.name.endsWith('.csv')) {
+                result = parseCSVQuestions(content, targetQuizId, schoolSiteId);
+            } else {
+                setUploadErrors(['Unsupported file format. Please use CSV or JSON.']);
+                setUploadProgress(0);
+                return;
+            }
+
+            setUploadProgress(60);
+            setUploadedQuestions(result.questions);
+            setUploadErrors(result.errors);
+            setUploadProgress(100);
+
+            if (result.questions.length > 0) {
+                setUploadStep(1);
+            }
+        };
+
+        reader.onerror = () => {
+            setUploadErrors(['Failed to read file']);
+            setUploadProgress(0);
+        };
+
+        reader.readAsText(file);
+    };
+
+    const confirmUploadQuestions = async () => {
+        if (!uploadTargetQuiz || uploadedQuestions.length === 0) return;
+
+        setUploadProgress(0);
+        let successCount = 0;
+        const errors: string[] = [];
+
+        for (let i = 0; i < uploadedQuestions.length; i++) {
+            const question = uploadedQuestions[i];
+            try {
+                const response = await fetch('/api/lms/quiz-questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...question,
+                        quizId: uploadTargetQuiz._id,
+                        schoolSiteId: user?.schoolSite
+                    })
+                });
+
+                if (response.ok) {
+                    successCount++;
+                } else {
+                    errors.push(`Question ${i + 1}: Failed to save`);
+                }
+            } catch (err) {
+                errors.push(`Question ${i + 1}: Network error`);
+            }
+            setUploadProgress(Math.round(((i + 1) / uploadedQuestions.length) * 100));
+        }
+
+        setUploadErrors(errors);
+        setUploadStep(2);
+        showToast('success', 'Upload Complete', `${successCount} of ${uploadedQuestions.length} questions imported`);
+        fetchQuizzes();
+    };
+
+    // ========================================================================
+    // QUESTION BANK FUNCTIONALITY
+    // ========================================================================
+
+    const openQuestionBankDialog = (quiz: Quiz) => {
+        setQuestionBankTargetQuiz(quiz);
+        setSelectedBankQuestions([]);
+        setQuestionBankFilter('');
+        setQuestionBankTypeFilter('');
+        setQuestionBankDialogVisible(true);
+        fetchQuestionBank();
+    };
+
+    const hideQuestionBankDialog = () => {
+        setQuestionBankDialogVisible(false);
+        setQuestionBankTargetQuiz(null);
+        setSelectedBankQuestions([]);
+        setQuestionBank([]);
+    };
+
+    const fetchQuestionBank = async () => {
+        try {
+            setQuestionBankLoading(true);
+            const params = new URLSearchParams();
+            if (user?.schoolSite) params.append('schoolSiteId', user.schoolSite);
+            params.append('limit', '500'); // Fetch more questions for selection
+
+            const response = await fetch(`/api/lms/quiz-questions/bank?${params.toString()}`);
+            if (response.ok) {
+                const data = await response.json();
+                setQuestionBank(data.questions || []);
+            } else {
+                // Fallback: Fetch from all quizzes
+                const quizResponse = await fetch(`/api/lms/quizzes?schoolSiteId=${user?.schoolSite}`);
+                if (quizResponse.ok) {
+                    const quizData = await quizResponse.json();
+                    const allQuestions: QuizQuestion[] = [];
+
+                    for (const quiz of quizData.quizzes || []) {
+                        const questionsResponse = await fetch(`/api/lms/quiz-questions?quizId=${quiz._id}`);
+                        if (questionsResponse.ok) {
+                            const qData = await questionsResponse.json();
+                            allQuestions.push(...(qData.questions || []));
+                        }
+                    }
+                    setQuestionBank(allQuestions);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching question bank:', error);
+            showToast('error', 'Error', 'Failed to load question bank');
+        } finally {
+            setQuestionBankLoading(false);
+        }
+    };
+
+    const getFilteredQuestionBank = () => {
+        return questionBank.filter((q) => {
+            // Exclude questions already in target quiz
+            if (questionBankTargetQuiz && q.quizId === questionBankTargetQuiz._id) return false;
+
+            // Apply text filter
+            if (questionBankFilter && !q.questionText.toLowerCase().includes(questionBankFilter.toLowerCase())) {
+                return false;
+            }
+
+            // Apply type filter
+            if (questionBankTypeFilter && q.questionType !== questionBankTypeFilter) {
+                return false;
+            }
+
+            return true;
+        });
+    };
+
+    const addSelectedQuestionsToQuiz = async () => {
+        if (!questionBankTargetQuiz || selectedBankQuestions.length === 0) return;
+
+        let successCount = 0;
+        const existingCount = questions.length;
+
+        for (let i = 0; i < selectedBankQuestions.length; i++) {
+            const question = selectedBankQuestions[i];
+            try {
+                const response = await fetch('/api/lms/quiz-questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...question,
+                        _id: undefined, // Remove original ID to create new
+                        quizId: questionBankTargetQuiz._id,
+                        schoolSiteId: user?.schoolSite,
+                        questionNumber: existingCount + i + 1,
+                        sortOrder: existingCount + i + 1
+                    })
+                });
+
+                if (response.ok) {
+                    successCount++;
+                }
+            } catch (err) {
+                console.error('Error adding question:', err);
+            }
+        }
+
+        showToast('success', 'Questions Added', `${successCount} question(s) added to quiz`);
+        hideQuestionBankDialog();
+        fetchQuizzes();
+
+        // Refresh questions if viewing the same quiz
+        if (currentQuiz?._id === questionBankTargetQuiz._id) {
+            fetchQuestions(currentQuiz._id);
+        }
+    };
+
+    const questionBankBodyTemplate = (rowData: QuizQuestion) => {
+        const typeConfig = questionTypesArray.find((t) => t.value === rowData.questionType);
+        return (
+            <div className="flex align-items-center gap-3">
+                <i className={`${typeConfig?.icon || 'pi pi-question'} text-xl text-primary`}></i>
+                <div className="flex-grow-1">
+                    <div className="font-medium text-900 mb-1" style={{ maxWidth: '400px' }}>
+                        {rowData.questionText.length > 80 ? `${rowData.questionText.substring(0, 80)}...` : rowData.questionText}
+                    </div>
+                    <div className="flex gap-2">
+                        <Tag value={typeConfig?.label || rowData.questionType} severity="info" className="text-xs" />
+                        <Tag value={`${rowData.points} pts`} severity="success" className="text-xs" />
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     // Templates
     const leftToolbarTemplate = () => (
         <div className="flex gap-2 flex-wrap align-items-center">
@@ -886,14 +834,21 @@ const LMSQuizManagement: React.FC<LMSQuizManagementProps> = ({ subjectId: propSu
         </div>
     );
 
+    const handleTakeQuiz = (quiz: Quiz) => {
+        window.open(`/lms/quizzes/take?quizId=${quiz._id}&returnUrl=/lms/quizzes`, '_blank');
+    };
+
     const actionBodyTemplate = (rowData: Quiz) => (
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
+            <Button icon="pi pi-play" rounded outlined severity="success" onClick={() => handleTakeQuiz(rowData)} tooltip="Take Quiz" tooltipOptions={{ position: 'top' }} disabled={!rowData.isPublished} />
             <Button icon="pi pi-list" rounded outlined severity="help" onClick={() => openQuestions(rowData)} tooltip="Questions" tooltipOptions={{ position: 'top' }} />
+            <Button icon="pi pi-upload" rounded outlined severity="info" onClick={() => openUploadDialog(rowData)} tooltip="Upload Questions" tooltipOptions={{ position: 'top' }} />
+            <Button icon="pi pi-database" rounded outlined severity="info" onClick={() => openQuestionBankDialog(rowData)} tooltip="Add from Bank" tooltipOptions={{ position: 'top' }} />
             <Button
                 icon={rowData.isPublished ? 'pi pi-eye-slash' : 'pi pi-eye'}
                 rounded
                 outlined
-                severity={rowData.isPublished ? 'warning' : 'success'}
+                severity={rowData.isPublished ? 'info' : 'success'}
                 onClick={() => togglePublish(rowData)}
                 tooltip={rowData.isPublished ? 'Unpublish' : 'Publish'}
                 tooltipOptions={{ position: 'top' }}
@@ -1837,6 +1792,217 @@ const LMSQuizManagement: React.FC<LMSQuizManagementProps> = ({ subjectId: propSu
                         {getCurrentQuestionType()?.hasMatching && <Tag value={`${questionFormData.matchingPairs.length} pairs`} severity="info" icon="pi pi-link" />}
                     </div>
                 </div>
+            </Dialog>
+
+            {/* Upload Questions Dialog */}
+            <Dialog
+                visible={uploadDialogVisible}
+                onHide={hideUploadDialog}
+                header={
+                    <div className="flex align-items-center gap-2">
+                        <i className="pi pi-upload text-primary text-xl"></i>
+                        <span>Upload Questions to: {uploadTargetQuiz?.title}</span>
+                    </div>
+                }
+                style={{ width: '700px' }}
+                modal
+                className="p-fluid"
+            >
+                <Steps model={[{ label: 'Upload File' }, { label: 'Review Questions' }, { label: 'Complete' }]} activeIndex={uploadStep} className="mb-4" />
+
+                {uploadStep === 0 && (
+                    <div>
+                        {/* File Format Info */}
+                        <div className="surface-100 border-round-lg p-4 mb-4">
+                            <h4 className="text-900 m-0 mb-3 flex align-items-center gap-2">
+                                <i className="pi pi-info-circle text-blue-500"></i>
+                                Supported Formats
+                            </h4>
+                            <div className="grid">
+                                <div className="col-12 md:col-6">
+                                    <div className="font-semibold text-700 mb-2">CSV Format</div>
+                                    <code className="text-xs block surface-200 p-2 border-round">questionText,questionType,points,optionA,correctA,optionB,correctB,...</code>
+                                </div>
+                                <div className="col-12 md:col-6">
+                                    <div className="font-semibold text-700 mb-2">JSON Format</div>
+                                    <code className="text-xs block surface-200 p-2 border-round">{`[{ "questionText": "...", "questionType": "single_choice_radio", "options": [...] }]`}</code>
+                                </div>
+                            </div>
+                            <Divider className="my-3" />
+                            <div className="text-sm text-600">
+                                <strong>Supported Question Types:</strong> single_choice_radio, single_choice_dropdown, multiple_choice, picture_choice, fill_blanks, matching, matching_text, free_text
+                            </div>
+                        </div>
+
+                        {/* File Upload */}
+                        <FileUpload
+                            ref={fileUploadRef}
+                            mode="advanced"
+                            accept=".csv,.json"
+                            maxFileSize={5000000}
+                            customUpload
+                            uploadHandler={handleFileUpload}
+                            auto
+                            chooseLabel="Select File"
+                            className="w-full"
+                            emptyTemplate={
+                                <div className="flex flex-column align-items-center justify-content-center py-5">
+                                    <i className="pi pi-cloud-upload text-5xl text-primary mb-3"></i>
+                                    <p className="text-600 m-0">Drag and drop a CSV or JSON file here</p>
+                                </div>
+                            }
+                        />
+
+                        {uploadProgress > 0 && uploadProgress < 100 && (
+                            <div className="mt-4">
+                                <ProgressBar value={uploadProgress} />
+                                <p className="text-center text-600 mt-2">Processing file...</p>
+                            </div>
+                        )}
+
+                        {uploadErrors.length > 0 && (
+                            <div className="mt-4 p-3 bg-red-50 border-round-lg">
+                                <h5 className="text-red-700 m-0 mb-2 flex align-items-center gap-2">
+                                    <i className="pi pi-exclamation-triangle"></i>
+                                    Errors Found
+                                </h5>
+                                <ul className="m-0 pl-4 text-red-600 text-sm">
+                                    {uploadErrors.slice(0, 10).map((err, idx) => (
+                                        <li key={idx}>{err}</li>
+                                    ))}
+                                    {uploadErrors.length > 10 && <li>...and {uploadErrors.length - 10} more errors</li>}
+                                </ul>
+                            </div>
+                        )}
+
+                        {/* Download Template */}
+                        <div className="mt-4 flex justify-content-center gap-2">
+                            <Button label="Download CSV Template" icon="pi pi-download" className="p-button-outlined p-button-sm" onClick={downloadCSVTemplate} />
+                            <Button label="Download JSON Template" icon="pi pi-download" className="p-button-outlined p-button-sm" onClick={downloadJSONTemplate} />
+                        </div>
+                    </div>
+                )}
+
+                {uploadStep === 1 && (
+                    <div>
+                        <div className="flex justify-content-between align-items-center mb-4">
+                            <div className="flex align-items-center gap-2">
+                                <i className="pi pi-check-circle text-green-500 text-xl"></i>
+                                <span className="font-semibold text-900">{uploadedQuestions.length} questions ready to import</span>
+                            </div>
+                            {uploadErrors.length > 0 && <Tag value={`${uploadErrors.length} errors`} severity="warning" />}
+                        </div>
+
+                        <div className="surface-100 border-round-lg p-3 max-h-20rem overflow-auto">
+                            {uploadedQuestions.map((q, idx) => {
+                                const typeConfig = questionTypesArray.find((t) => t.value === q.questionType);
+                                return (
+                                    <div key={idx} className="flex align-items-center gap-3 p-2 mb-2 surface-card border-round">
+                                        <Badge value={idx + 1} severity="info" />
+                                        <i className={`${typeConfig?.icon} text-primary`}></i>
+                                        <div className="flex-grow-1">
+                                            <div className="text-900 text-sm">{q.questionText.substring(0, 60)}...</div>
+                                            <div className="flex gap-2 mt-1">
+                                                <Tag value={typeConfig?.label || q.questionType} className="text-xs" />
+                                                <Tag value={`${q.points} pts`} severity="success" className="text-xs" />
+                                                {q.questionOptions.length > 0 && <Tag value={`${q.questionOptions.length} options`} className="text-xs" severity="info" />}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex justify-content-between mt-4">
+                            <Button label="Back" icon="pi pi-arrow-left" className="p-button-outlined" onClick={() => setUploadStep(0)} />
+                            <Button label="Import Questions" icon="pi pi-check" severity="success" onClick={confirmUploadQuestions} />
+                        </div>
+                    </div>
+                )}
+
+                {uploadStep === 2 && (
+                    <div className="text-center py-5">
+                        <i className="pi pi-check-circle text-6xl text-green-500 mb-4"></i>
+                        <h3 className="text-900">Upload Complete!</h3>
+                        <p className="text-600">Questions have been imported successfully.</p>
+                        <Button label="Close" icon="pi pi-times" onClick={hideUploadDialog} className="mt-3" />
+                    </div>
+                )}
+            </Dialog>
+
+            {/* Question Bank Dialog */}
+            <Dialog
+                visible={questionBankDialogVisible}
+                onHide={hideQuestionBankDialog}
+                header={
+                    <div className="flex align-items-center gap-2">
+                        <i className="pi pi-database text-primary text-xl"></i>
+                        <span>Add Questions from Bank to: {questionBankTargetQuiz?.title}</span>
+                    </div>
+                }
+                style={{ width: '900px' }}
+                modal
+                footer={
+                    <div className="flex justify-content-between align-items-center">
+                        <div className="flex align-items-center gap-2 text-600">
+                            <i className="pi pi-info-circle"></i>
+                            <small>{selectedBankQuestions.length} question(s) selected</small>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button label="Cancel" icon="pi pi-times" className="p-button-outlined" onClick={hideQuestionBankDialog} />
+                            <Button label={`Add ${selectedBankQuestions.length} Question(s)`} icon="pi pi-plus" severity="success" onClick={addSelectedQuestionsToQuiz} disabled={selectedBankQuestions.length === 0} />
+                        </div>
+                    </div>
+                }
+            >
+                {/* Filters */}
+                <div className="flex flex-wrap gap-3 mb-4">
+                    <span className="p-input-icon-left flex-grow-1">
+                        <i className="pi pi-search" />
+                        <InputText value={questionBankFilter} onChange={(e) => setQuestionBankFilter(e.target.value)} placeholder="Search questions..." className="w-full" />
+                    </span>
+                    <Dropdown
+                        value={questionBankTypeFilter}
+                        options={[{ label: 'All Types', value: '' }, ...questionTypesArray.map((t) => ({ label: t.label, value: t.value }))]}
+                        onChange={(e) => setQuestionBankTypeFilter(e.value)}
+                        placeholder="Filter by Type"
+                        className="w-15rem"
+                        showClear
+                    />
+                </div>
+
+                {/* Info Banner */}
+                <div className="surface-100 border-round-lg p-3 mb-4 flex align-items-center gap-2">
+                    <i className="pi pi-lightbulb text-yellow-500"></i>
+                    <span className="text-600 text-sm">Select questions from other quizzes to add to this quiz. Questions will be duplicated.</span>
+                </div>
+
+                {/* Questions Table */}
+                <DataTable
+                    value={getFilteredQuestionBank()}
+                    selection={selectedBankQuestions}
+                    onSelectionChange={(e: DataTableSelectionMultipleChangeEvent<QuizQuestion[]>) => setSelectedBankQuestions(e.value)}
+                    dataKey="_id"
+                    paginator
+                    rows={10}
+                    loading={questionBankLoading}
+                    emptyMessage="No questions found in the question bank"
+                    selectionMode="multiple"
+                    className="p-datatable-sm"
+                    scrollable
+                    scrollHeight="400px"
+                >
+                    <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} />
+                    <Column header="Question" body={questionBankBodyTemplate} style={{ minWidth: '400px' }} />
+                    <Column
+                        header="Source Quiz"
+                        body={(rowData: QuizQuestion) => {
+                            const quiz = quizzes.find((q) => q._id === rowData.quizId);
+                            return quiz ? <span className="text-500 text-sm">{quiz.title}</span> : <span className="text-400">-</span>;
+                        }}
+                        style={{ width: '200px' }}
+                    />
+                </DataTable>
             </Dialog>
         </>
     );

@@ -321,6 +321,17 @@ export default function StudentDashboard({ studentId }: StudentDashboardProps) {
                                 </Card>
                             </div>
 
+                            {/* Quick Actions */}
+                            <div className="col-12">
+                                <Card title="Quick Actions" className="shadow-2">
+                                    <div className="flex flex-wrap gap-3">
+                                        <Button label="Take Quiz" icon="pi pi-question-circle" className="p-button-success" onClick={() => router.push('/lms/quizzes/take')} />
+                                        <Button label="Learning Portal" icon="pi pi-book" className="p-button-info" onClick={() => router.push('/lms/learning-portal')} />
+                                        <Button label="View Transcript" icon="pi pi-file-pdf" className="p-button-help" onClick={() => setActiveTabIndex(2)} />
+                                    </div>
+                                </Card>
+                            </div>
+
                             {/* Current Term Performance */}
                             {dashboardData.performance.currentTermScore && (
                                 <div className="col-12 lg:col-6">

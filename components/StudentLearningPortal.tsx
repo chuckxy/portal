@@ -25,6 +25,7 @@ import { Image } from 'primereact/image';
 import { useAuth } from '@/context/AuthContext';
 import VideoPlayer, { VideoProgressState } from './VideoPlayer';
 import { PdfViewerProps } from './PdfViewer';
+import { DisplayQuestions, QuizQuestionData } from './quiz/QuestionTypes';
 
 // Dynamic import for PdfViewer component to avoid SSR issues with react-pdf
 const PdfViewer = dynamic<PdfViewerProps>(() => import('./PdfViewer'), {
@@ -1430,8 +1431,8 @@ const StudentLearningPortal: React.FC = () => {
                             <h2 className="text-xl lg:text-2xl font-bold text-900 m-0">{state.currentLesson.lessonTitle}</h2>
                         </div>
                         <div className="flex align-items-center gap-2">
-                            <Button icon="pi pi-chevron-left" className="p-button-outlined p-button-secondary" tooltip="Previous Lesson" onClick={() => navigateLesson('prev')} />
-                            <Button icon="pi pi-chevron-right" className="p-button-outlined p-button-secondary" tooltip="Next Lesson" onClick={() => navigateLesson('next')} />
+                            <Button icon="pi pi-chevron-left" className="p-button-outlined p-button-primary" tooltip="Previous Lesson" onClick={() => navigateLesson('prev')} />
+                            <Button icon="pi pi-chevron-right" className="p-button-outlined p-button-primary" tooltip="Next Lesson" onClick={() => navigateLesson('next')} />
                             <Divider layout="vertical" className="mx-2" />
                             <Button icon="pi pi-bookmark" className="p-button-text" tooltip="Add Note" onClick={openNoteDialog} />
                             <Button icon="pi pi-check" label="Mark Complete" className="p-button-success" onClick={markLessonComplete} />
@@ -1893,80 +1894,8 @@ const StudentLearningPortal: React.FC = () => {
                                         <Button icon="pi pi-send" label="Submit Quiz" onClick={submitQuiz} className="p-button-success" />
                                     </div>
 
-                                    <div className="flex flex-column gap-4">
-                                        {state.quizQuestions.map((question, index) => {
-                                            const userAnswers = state.currentQuizAnswers.get(question._id) || [];
-                                            const isAnswered = userAnswers.length > 0;
-
-                                            return (
-                                                <div key={question._id} className={`surface-50 border-round-lg p-4 ${isAnswered ? 'border-left-3 border-green-500' : ''}`}>
-                                                    <div className="flex align-items-start gap-3 mb-3">
-                                                        <Badge value={index + 1} severity={isAnswered ? 'success' : 'warning'} className="flex-shrink-0" />
-                                                        <div>
-                                                            <p className="text-900 font-semibold m-0 mb-2">{question.questionText}</p>
-                                                            <span className="text-xs text-500">
-                                                                {question.points} point{question.points !== 1 ? 's' : ''} •{' '}
-                                                                {question.questionType === 'single_choice_radio' || question.questionType === 'single_choice_dropdown'
-                                                                    ? 'Single choice'
-                                                                    : question.questionType === 'multiple_choice'
-                                                                    ? 'Multiple choice'
-                                                                    : question.questionType.replace(/_/g, ' ')}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Question Image */}
-                                                    {question.imageUrl && (
-                                                        <div className="mb-3">
-                                                            <img src={question.imageUrl} alt="Question" className="border-round max-w-full" style={{ maxHeight: '200px' }} />
-                                                        </div>
-                                                    )}
-
-                                                    {/* Answer Options */}
-                                                    <div className="flex flex-column gap-2 pl-5">
-                                                        {(question.questionType === 'single_choice_radio' || question.questionType === 'single_choice_dropdown') &&
-                                                            question.questionOptions.map((opt, optIndex) => (
-                                                                <div
-                                                                    key={opt.id || optIndex}
-                                                                    className={`p-3 border-round cursor-pointer transition-colors transition-duration-150 ${
-                                                                        userAnswers.includes(opt.id) ? 'bg-primary-100 border-1 border-primary' : 'surface-100 hover:surface-200'
-                                                                    }`}
-                                                                    onClick={() => handleQuizAnswerChange(question._id, [opt.id])}
-                                                                >
-                                                                    <div className="flex align-items-center gap-2">
-                                                                        <i className={`pi ${userAnswers.includes(opt.id) ? 'pi-circle-fill text-primary' : 'pi-circle'}`}></i>
-                                                                        <span className="text-700">{opt.text}</span>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-
-                                                        {question.questionType === 'multiple_choice' &&
-                                                            question.questionOptions.map((opt, optIndex) => (
-                                                                <div
-                                                                    key={opt.id || optIndex}
-                                                                    className={`p-3 border-round cursor-pointer transition-colors transition-duration-150 ${
-                                                                        userAnswers.includes(opt.id) ? 'bg-primary-100 border-1 border-primary' : 'surface-100 hover:surface-200'
-                                                                    }`}
-                                                                    onClick={() => {
-                                                                        const newAnswers = userAnswers.includes(opt.id) ? userAnswers.filter((a) => a !== opt.id) : [...userAnswers, opt.id];
-                                                                        handleQuizAnswerChange(question._id, newAnswers);
-                                                                    }}
-                                                                >
-                                                                    <div className="flex align-items-center gap-2">
-                                                                        <i className={`pi ${userAnswers.includes(opt.id) ? 'pi-check-square text-primary' : 'pi-stop'}`}></i>
-                                                                        <span className="text-700">{opt.text}</span>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-
-                                                        {(question.questionType === 'fill_blanks' || question.questionType === 'free_text') && (
-                                                            <InputText value={userAnswers[0] || ''} onChange={(e) => handleQuizAnswerChange(question._id, [e.target.value])} placeholder="Type your answer..." className="w-full" />
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                    {/* Render all question types using DisplayQuestions component */}
+                                    <DisplayQuestions questions={state.quizQuestions as QuizQuestionData[]} currentAnswers={state.currentQuizAnswers} onAnswerChange={handleQuizAnswerChange} showAllQuestions={true} />
 
                                     {/* Submit Button at Bottom */}
                                     <div className="flex justify-content-center mt-4 pt-4 border-top-1 surface-border">
