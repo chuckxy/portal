@@ -211,7 +211,7 @@ ExamScheduleSchema.index({ startDate: 1, endDate: 1 });
 ExamScheduleSchema.index({ 'examinations.class': 1 });
 ExamScheduleSchema.index({ 'examinations.subject': 1 });
 ExamScheduleSchema.index({ 'examinations.examDate': 1 });
-ExamScheduleSchema.index({ isPublished: 1 });
+// Note: isPublished index is defined inline with index: true
 
 // Virtual for total exams
 ExamScheduleSchema.virtual('totalExams').get(function (this: IExamSchedule) {

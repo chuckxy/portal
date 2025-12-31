@@ -106,7 +106,7 @@ const DailyFeeCollectionSchema = new Schema<IDailyFeeCollection>(
 // Indexes for efficient querying
 DailyFeeCollectionSchema.index({ site: 1, collectionDate: 1 }, { unique: true });
 DailyFeeCollectionSchema.index({ site: 1, academicYear: 1, academicTerm: 1 });
-DailyFeeCollectionSchema.index({ collectionDate: -1 });
+// Note: collectionDate index is defined inline with index: true
 
 // Virtual for total daily collection
 DailyFeeCollectionSchema.virtual('totalDailyCollection').get(function () {

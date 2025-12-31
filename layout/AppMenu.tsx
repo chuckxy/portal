@@ -65,6 +65,22 @@ const AppMenu = () => {
         },
         { separator: true },
         {
+            label: 'Learning Management',
+            icon: 'pi pi-desktop',
+            items: [
+                { label: 'Dashboard', icon: 'pi pi-fw pi-chart-line', to: '/lms/dashboard' },
+                { label: 'My Courses', icon: 'pi pi-fw pi-book', to: '/lms/my-courses' },
+                { label: 'Course Content', icon: 'pi pi-fw pi-th-large', to: '/lms/content' },
+                { label: 'Course Modules', icon: 'pi pi-fw pi-folder', to: '/lms/modules' },
+                { label: 'Chapters', icon: 'pi pi-fw pi-list', to: '/lms/chapters' },
+                { label: 'Lessons', icon: 'pi pi-fw pi-play-circle', to: '/lms/lessons' },
+                { label: 'Quizzes', icon: 'pi pi-fw pi-question-circle', to: '/lms/quizzes' },
+                { label: 'Enrollments', icon: 'pi pi-fw pi-users', to: '/lms/enrollment' },
+                { label: 'Announcements', icon: 'pi pi-fw pi-megaphone', to: '/lms/announcements' }
+            ]
+        },
+        { separator: true },
+        {
             label: 'Library Management',
             icon: 'pi pi-book',
             items: [

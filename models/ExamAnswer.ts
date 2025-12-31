@@ -42,6 +42,7 @@ export interface IExamAnswer {
     calculateTotalMarks(): number;
 }
 
+// @ts-ignore
 const ExamAnswerSchema = new Schema<IExamAnswer>(
     {
         student: {
@@ -188,7 +189,7 @@ const ExamAnswerSchema = new Schema<IExamAnswer>(
 ExamAnswerSchema.index({ student: 1, subject: 1, academicYear: 1, academicTerm: 1 });
 ExamAnswerSchema.index({ school: 1, site: 1, academicYear: 1, academicTerm: 1 });
 ExamAnswerSchema.index({ class: 1, subject: 1 });
-ExamAnswerSchema.index({ status: 1 });
+// Note: status index is defined inline with index: true
 
 // Ensure one exam per student per subject per term
 ExamAnswerSchema.index({ student: 1, subject: 1, academicYear: 1, academicTerm: 1, examType: 1 }, { unique: true });

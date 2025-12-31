@@ -15,6 +15,36 @@ export type DocumentType = 'passport' | 'national_id' | 'voters_id' | 'birth_cer
 export type EventType = 'meeting' | 'class' | 'exam' | 'appointment' | 'other';
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
 
+// Interface for LMS Certification (Integration with LMS)
+export interface ILMSCertification {
+    courseId: mongoose.Types.ObjectId;
+    certificateId: string;
+    issuedDate: Date;
+    expiryDate?: Date;
+    certificatePath?: string;
+}
+
+// Interface for LMS Preferences (Integration with LMS)
+export interface ILMSPreferences {
+    emailNotifications: boolean;
+    browserNotifications: boolean;
+    preferredLanguage: string;
+    autoPlayVideos: boolean;
+    showProgressBar: boolean;
+}
+
+// Interface for LMS Profile subdocument (Integration with LMS)
+export interface ILMSProfile {
+    isLmsUser: boolean;
+    instructorBio?: string;
+    instructorRating?: number;
+    totalCoursesCreated: number;
+    totalCoursesEnrolled: number;
+    totalCoursesCompleted: number;
+    certifications: ILMSCertification[];
+    preferences: ILMSPreferences;
+}
+
 // Interface for Contact subdocument
 export interface IContact {
     mobilePhone?: string;
@@ -206,6 +236,7 @@ export interface IPersonDoc {
     medicalInfo: IMedicalInfo;
     officialDocuments: IOfficialDocument[];
     calendar: ICalendarEvent[];
+    lmsProfile?: ILMSProfile; // LMS Integration
 }
 
 // Methods interface
@@ -716,7 +747,84 @@ const PersonSchema = new Schema<IPersonDoc, PersonModel, IPersonMethods>(
                     default: false
                 }
             }
-        ]
+        ],
+
+        // LMS Integration: Learning Management System profile
+        lmsProfile: {
+            isLmsUser: {
+                type: Boolean,
+                default: false
+            },
+            instructorBio: {
+                type: String,
+                trim: true
+            },
+            instructorRating: {
+                type: Number,
+                min: 0,
+                max: 5
+            },
+            totalCoursesCreated: {
+                type: Number,
+                default: 0,
+                min: 0
+            },
+            totalCoursesEnrolled: {
+                type: Number,
+                default: 0,
+                min: 0
+            },
+            totalCoursesCompleted: {
+                type: Number,
+                default: 0,
+                min: 0
+            },
+            certifications: [
+                {
+                    courseId: {
+                        type: Schema.Types.ObjectId,
+                        ref: 'Subject'
+                    },
+                    certificateId: {
+                        type: String,
+                        trim: true
+                    },
+                    issuedDate: {
+                        type: Date
+                    },
+                    expiryDate: {
+                        type: Date
+                    },
+                    certificatePath: {
+                        type: String,
+                        trim: true
+                    }
+                }
+            ],
+            preferences: {
+                emailNotifications: {
+                    type: Boolean,
+                    default: true
+                },
+                browserNotifications: {
+                    type: Boolean,
+                    default: true
+                },
+                preferredLanguage: {
+                    type: String,
+                    default: 'en',
+                    trim: true
+                },
+                autoPlayVideos: {
+                    type: Boolean,
+                    default: true
+                },
+                showProgressBar: {
+                    type: Boolean,
+                    default: true
+                }
+            }
+        }
     },
     {
         timestamps: true,
@@ -744,6 +852,7 @@ PersonSchema.index({ school: 1, schoolSite: 1, personCategory: 1 });
 PersonSchema.index({ 'contact.mobilePhone': 1 });
 PersonSchema.index({ school: 1, personCategory: 1, isActive: 1 });
 PersonSchema.index({ schoolSite: 1, 'studentInfo.currentClass': 1 });
+PersonSchema.index({ 'lmsProfile.isLmsUser': 1 }); // LMS Integration
 
 // Virtual for full name
 PersonSchema.virtual('fullName').get(function () {

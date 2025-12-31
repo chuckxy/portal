@@ -3,6 +3,21 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export type SchoolLevel = 'early_child' | 'basic' | 'junior' | 'senior' | 'tertiary';
 export type TertiaryType = 'university' | 'nursing_training' | 'teacher_training' | 'vocational' | 'n/a';
 export type Priority = 'low' | 'medium' | 'high';
+export type CourseDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+// Interface for LMS Settings subdocument (Integration with LMS)
+export interface ILMSSettings {
+    isLmsEnabled: boolean;
+    defaultCourseDuration?: number;
+    maxEnrollmentsPerCourse?: number;
+    allowSelfEnrollment: boolean;
+    certificateTemplate?: string;
+    defaultQuizPassScore?: number;
+    enableDiscussions: boolean;
+    enableCertificates: boolean;
+    enableCourseReviews: boolean;
+    defaultDifficulty: CourseDifficulty;
+}
 
 // Interface for Address subdocument
 export interface ISchoolSiteAddress {
@@ -82,6 +97,7 @@ export interface ISchoolSiteDoc {
     academicYears: IAcademicYear[];
     houses: IHouse[];
     bulletinBoard: IBulletinBoard[];
+    lmsSettings?: ILMSSettings; // LMS Integration
     isActive: boolean;
 }
 
@@ -293,6 +309,53 @@ const SchoolSiteSchema = new Schema<ISchoolSiteDoc, SchoolSiteModel, ISchoolSite
             }
         ],
 
+        // LMS Integration: Settings for Learning Management System
+        lmsSettings: {
+            isLmsEnabled: {
+                type: Boolean,
+                default: false
+            },
+            defaultCourseDuration: {
+                type: Number, // days
+                min: 1
+            },
+            maxEnrollmentsPerCourse: {
+                type: Number,
+                min: 1
+            },
+            allowSelfEnrollment: {
+                type: Boolean,
+                default: false
+            },
+            certificateTemplate: {
+                type: String,
+                trim: true
+            },
+            defaultQuizPassScore: {
+                type: Number,
+                min: 0,
+                max: 100,
+                default: 60
+            },
+            enableDiscussions: {
+                type: Boolean,
+                default: true
+            },
+            enableCertificates: {
+                type: Boolean,
+                default: true
+            },
+            enableCourseReviews: {
+                type: Boolean,
+                default: true
+            },
+            defaultDifficulty: {
+                type: String,
+                enum: ['beginner', 'intermediate', 'advanced'],
+                default: 'beginner'
+            }
+        },
+
         isActive: {
             type: Boolean,
             default: true
@@ -309,6 +372,7 @@ const SchoolSiteSchema = new Schema<ISchoolSiteDoc, SchoolSiteModel, ISchoolSite
 SchoolSiteSchema.index({ school: 1, schoolLevel: 1 });
 SchoolSiteSchema.index({ 'address.country': 1, 'address.region': 1 });
 SchoolSiteSchema.index({ 'academicYears.year': 1, 'academicYears.isActive': 1 });
+SchoolSiteSchema.index({ 'lmsSettings.isLmsEnabled': 1 }); // LMS Integration
 
 // Methods
 SchoolSiteSchema.methods.getCurrentAcademicYear = function (): IAcademicYear | undefined {
