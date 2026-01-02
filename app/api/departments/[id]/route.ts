@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Department from '@/models/Department';
 import Faculty from '@/models/Faculty';
+import { withActivityLogging } from '@/lib/middleware/activityLogging';
 
 // GET a single department by ID
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

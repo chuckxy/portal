@@ -17,8 +17,11 @@ import { Tag } from 'primereact/tag';
 import { ProgressBar } from 'primereact/progressbar';
 import { Divider } from 'primereact/divider';
 import { Tooltip } from 'primereact/tooltip';
+import { useReactToPrint } from 'react-to-print';
 import LocalDBService from '@/lib/services/localDBService';
 import { useAuth } from '@/context/AuthContext';
+import { getAcademicYears } from '@/lib/utils/utilFunctions';
+import { CollectionsPrintReport } from './CollectionsPrintReport';
 
 interface DailyFeeCollectionData {
     _id?: string;
@@ -69,7 +72,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
 
     const [formData, setFormData] = useState<Partial<DailyFeeCollectionData>>({
         collectionDate: new Date(),
-        academicYear: '2024/2025',
+        academicYear: getAcademicYears[0].value,
         academicTerm: 1,
         currency: 'GHS',
         canteenFeeAmount: 0,
@@ -100,13 +103,31 @@ export const DailyFeeCollectionManagement: React.FC = () => {
 
     const toast = useRef<Toast>(null);
     const dt = useRef<DataTable<DailyFeeCollectionData[]>>(null);
+    const printRef = useRef<HTMLDivElement>(null);
 
-    const academicYears = ['2025/2026', '2024/2025', '2023/2024'];
     const academicTerms = [
         { label: 'Term 1', value: 1 },
         { label: 'Term 2', value: 2 },
         { label: 'Term 3', value: 3 }
     ];
+
+    // Print handler
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `Collections_Report_${new Date().toISOString().split('T')[0]}`,
+        pageStyle: `
+            @page {
+                size: A4;
+                margin: 15mm;
+            }
+            @media print {
+                body {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+            }
+        `
+    });
 
     useEffect(() => {
         fetchSchools();
@@ -239,7 +260,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
     const openNew = () => {
         setFormData({
             collectionDate: new Date(),
-            academicYear: '2024/2025',
+            academicYear: getAcademicYears[0].value,
             academicTerm: 1,
             currency: 'GHS',
             canteenFeeAmount: 0,
@@ -293,10 +314,17 @@ export const DailyFeeCollectionManagement: React.FC = () => {
             const url = editMode ? `/api/daily-fee-collections?id=${formData._id}` : '/api/daily-fee-collections';
             const method = editMode ? 'PUT' : 'POST';
 
+            // Set accumulated fees from the collected amounts
+            const dataToSave = {
+                ...formData,
+                accumulatedCanteenFee: formData.canteenFeeAmount || 0,
+                accumulatedBusFee: formData.busFeeAmount || 0
+            };
+
             const response = await fetch(url, {
                 method,
                 headers,
-                body: JSON.stringify(formData)
+                body: JSON.stringify(dataToSave)
             });
 
             if (!response.ok) {
@@ -452,7 +480,8 @@ export const DailyFeeCollectionManagement: React.FC = () => {
         return (
             <div className="flex gap-2">
                 <Button label="Record Collection" icon="pi pi-plus" className="p-button-success" onClick={openNew} />
-                <Button label="Export" icon="pi pi-upload" className="p-button-help" onClick={exportCSV} />
+                <Button label="Export CSV" icon="pi pi-upload" className="p-button-help" onClick={exportCSV} />
+                <Button label="Print Report" icon="pi pi-print" className="p-button-info" onClick={handlePrint} disabled={collections.length === 0} />
             </div>
         );
     };
@@ -549,7 +578,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
                     </div>
                     <div className="col-12 md:col-3">
                         <label className="block text-sm font-medium mb-2">Academic Year</label>
-                        <Dropdown value={filters.academicYear} options={academicYears.map((y) => ({ label: y, value: y }))} onChange={(e) => setFilters({ ...filters, academicYear: e.value })} placeholder="All Years" className="w-full" showClear />
+                        <Dropdown value={filters.academicYear} options={getAcademicYears} onChange={(e) => setFilters({ ...filters, academicYear: e.value })} placeholder="All Years" className="w-full" showClear />
                     </div>
                     <div className="col-12 md:col-2">
                         <label className="block text-sm font-medium mb-2">Term</label>
@@ -655,7 +684,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
 
                     <div className="col-12 md:col-4">
                         <label className="block font-medium mb-2">Academic Year</label>
-                        <Dropdown value={formData.academicYear} options={academicYears.map((y) => ({ label: y, value: y }))} onChange={(e) => setFormData({ ...formData, academicYear: e.value })} className="w-full" />
+                        <Dropdown value={formData.academicYear} options={getAcademicYears} onChange={(e) => setFormData({ ...formData, academicYear: e.value })} className="w-full" />
                     </div>
 
                     <div className="col-12 md:col-4">
@@ -716,7 +745,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
                                         {new Intl.NumberFormat('en-GH', {
                                             style: 'currency',
                                             currency: 'GHS'
-                                        }).format((formData.accumulatedCanteenFee || 0) + (formData.accumulatedBusFee || 0))}
+                                        }).format((formData.canteenFeeAmount || 0) + (formData.busFeeAmount || 0))}
                                     </div>
                                 </div>
                             </div>
@@ -742,7 +771,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
                                         {new Intl.NumberFormat('en-GH', {
                                             style: 'currency',
                                             currency: selectedCollection.currency
-                                        }).format((selectedCollection.accumulatedCanteenFee || 0) + (selectedCollection.accumulatedBusFee || 0))}
+                                        }).format((selectedCollection.canteenFeeAmount || 0) + (selectedCollection.busFeeAmount || 0))}
                                     </div>
                                     <div className="text-sm text-600 mt-1">Total Collected</div>
                                 </div>
@@ -802,7 +831,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
 
                         <div className="col-12">
                             <div className="text-sm text-600 mb-2">Attendance Rate</div>
-                            <ProgressBar value={selectedCollection.totalStudents > 0 ? (selectedCollection.totalStudentsPresent / selectedCollection.totalStudents) * 100 : 0} />
+                            <ProgressBar className="h-1rem" value={selectedCollection.totalStudents > 0 ? (selectedCollection.totalStudentsPresent / selectedCollection.totalStudents) * 100 : 0} />
                         </div>
 
                         <Divider />
@@ -813,7 +842,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
                                 {new Intl.NumberFormat('en-GH', {
                                     style: 'currency',
                                     currency: selectedCollection.currency
-                                }).format(selectedCollection.accumulatedCanteenFee)}
+                                }).format(selectedCollection.canteenFeeAmount)}
                             </div>
                         </div>
 
@@ -823,7 +852,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
                                 {new Intl.NumberFormat('en-GH', {
                                     style: 'currency',
                                     currency: selectedCollection.currency
-                                }).format(selectedCollection.accumulatedBusFee)}
+                                }).format(selectedCollection.busFeeAmount)}
                             </div>
                         </div>
 
@@ -847,6 +876,23 @@ export const DailyFeeCollectionManagement: React.FC = () => {
                     </div>
                 )}
             </Dialog>
+
+            {/* Hidden Print Component */}
+            <div style={{ display: 'none' }}>
+                <CollectionsPrintReport
+                    ref={printRef}
+                    collections={collections}
+                    schoolName={schools.find((s) => s._id === (filters.school || user?.school))?.name || 'School Name'}
+                    schoolAddress="School Address Line 1, City, Region"
+                    schoolContact="Tel: +233 XXX XXX XXX | Email: info@school.edu.gh"
+                    academicYear={filters.academicYear || 'All Years'}
+                    academicTerm={filters.academicTerm}
+                    dateFrom={filters.dateFrom}
+                    dateTo={filters.dateTo}
+                    siteName={filterSites.find((s) => s._id === filters.site)?.description}
+                    generatedBy={user ? `${user.firstName} ${user.lastName}` : 'System Administrator'}
+                />
+            </div>
         </>
     );
 };

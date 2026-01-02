@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         await connectDB();
 
         const body = await request.json();
-        const { persons, school, schoolSite } = body;
+        const { persons, school, schoolSite, personCategory, defaultClass, defaultFaculty, defaultDepartment } = body;
 
         if (!Array.isArray(persons) || persons.length === 0) {
             return NextResponse.json({ success: false, message: 'No persons data provided' }, { status: 400 });
@@ -37,6 +37,23 @@ export async function POST(request: NextRequest) {
 
         if (!school || !schoolSite) {
             return NextResponse.json({ success: false, message: 'School and school site are required' }, { status: 400 });
+        }
+
+        if (!personCategory) {
+            return NextResponse.json({ success: false, message: 'Person category is required' }, { status: 400 });
+        }
+
+        // For students, validate required configuration
+        if (personCategory === 'student') {
+            if (!defaultClass || !defaultFaculty || !defaultDepartment) {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        message: 'Class, Faculty, and Department are required for student uploads'
+                    },
+                    { status: 400 }
+                );
+            }
         }
 
         const result: BulkUploadResult = {
@@ -107,11 +124,16 @@ export async function POST(request: NextRequest) {
                     continue;
                 }
 
-                if (!personData.personCategory) {
+                // Use the personCategory from configuration or from the individual record
+                const category = personData.personCategory || personCategory;
+                if (!category) {
                     result.failed++;
                     result.errors.push({ row: rowNumber, username: personData.username, error: 'Person category is required' });
                     continue;
                 }
+
+                // Apply personCategory from configuration
+                personData.personCategory = category;
 
                 // Check for existing username
                 const existingUsername = await Person.findOne({
@@ -145,7 +167,7 @@ export async function POST(request: NextRequest) {
                 const salt = await bcrypt.genSalt(10);
                 const hashedPassword = await bcrypt.hash(personData.password, salt);
 
-                // Auto-generate IDs
+                // Auto-generate IDs and apply default values
                 if (personData.personCategory === 'student') {
                     if (!personData.studentInfo) {
                         personData.studentInfo = {};
@@ -153,6 +175,16 @@ export async function POST(request: NextRequest) {
                     if (!personData.studentInfo.studentId) {
                         personData.studentInfo.studentId = `STU${String(studentCounter).padStart(5, '0')}`;
                         studentCounter++;
+                    }
+                    // Apply default class, faculty, and department if not provided
+                    if (!personData.studentInfo.currentClass && defaultClass) {
+                        personData.studentInfo.currentClass = defaultClass;
+                    }
+                    if (!personData.studentInfo.faculty && defaultFaculty) {
+                        personData.studentInfo.faculty = defaultFaculty;
+                    }
+                    if (!personData.studentInfo.department && defaultDepartment) {
+                        personData.studentInfo.department = defaultDepartment;
                     }
                 } else if (personData.personCategory !== 'parent') {
                     if (!personData.employeeInfo) {

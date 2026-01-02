@@ -26,6 +26,7 @@ import { Checkbox } from 'primereact/checkbox';
 import { useAuth } from '@/context/AuthContext';
 import { debounce } from 'lodash';
 import LocalDBService from '@/lib/services/localDBService';
+import { getAcademicYears } from '@/lib/utils/utilFunctions';
 
 // Helper function to get auth headers
 const getAuthHeaders = async () => {
@@ -112,7 +113,7 @@ const INITIAL_DATA_STATE: ExamScoreData = {
     school: 0,
     site: 0,
     class: null,
-    academicYear: new Date().getFullYear() + '/' + (new Date().getFullYear() + 1),
+    academicYear: getAcademicYears[0].value,
     academicTerm: 1,
     scores: [],
     overallPosition: undefined,
@@ -1033,11 +1034,12 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
                 <label htmlFor="academicYear" className="font-semibold">
                     Academic Year *
                 </label>
-                <InputText
+                <Dropdown
                     id="academicYear"
                     value={formData.academicYear}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, academicYear: e.target.value }))}
-                    placeholder="2024/2025"
+                    options={getAcademicYears}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, academicYear: e.value }))}
+                    placeholder="Select Academic Year"
                     disabled={contextLocked}
                     className={errors.find((e) => e.field === 'academicYear') ? 'p-invalid' : ''}
                 />

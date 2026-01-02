@@ -7,15 +7,14 @@ import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { Toast } from 'primereact/toast';
 import { Dropdown } from 'primereact/dropdown';
-import { Calendar } from 'primereact/calendar';
 import { Chart } from 'primereact/chart';
-import { TabView, TabPanel } from 'primereact/tabview';
 import { ProgressBar } from 'primereact/progressbar';
 import { Tag } from 'primereact/tag';
-import { Badge } from 'primereact/badge';
 import { Divider } from 'primereact/divider';
 import { Skeleton } from 'primereact/skeleton';
 import { SelectButton } from 'primereact/selectbutton';
+import { useReactToPrint } from 'react-to-print';
+import FinancialStandingsPrintReport from './FinancialStandingsPrintReport';
 
 interface FinancialSummary {
     // Income
@@ -104,6 +103,7 @@ export const FinancialControllerDashboard: React.FC = () => {
     const [chartOptions, setChartOptions] = useState<any>(null);
 
     const toast = useRef<Toast>(null);
+    const printRef = useRef<HTMLDivElement>(null);
 
     const academicYears = ['2025/2026', '2024/2025', '2023/2024'];
     const periodOptions = [
@@ -259,13 +259,30 @@ export const FinancialControllerDashboard: React.FC = () => {
         return ((summary.totalFeesReceived / summary.totalFeesExpected) * 100).toFixed(1);
     };
 
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `Financial_Standings_Report_${new Date().toISOString().split('T')[0]}`,
+        onAfterPrint: () => {
+            toast.current?.show({
+                severity: 'success',
+                summary: 'Success',
+                detail: 'Report printed successfully',
+                life: 3000
+            });
+        }
+    });
+
     const exportReport = (type: 'pdf' | 'excel') => {
-        toast.current?.show({
-            severity: 'info',
-            summary: 'Export',
-            detail: `Exporting ${type.toUpperCase()} report...`,
-            life: 3000
-        });
+        if (type === 'pdf') {
+            handlePrint();
+        } else {
+            toast.current?.show({
+                severity: 'info',
+                summary: 'Export',
+                detail: `Exporting ${type.toUpperCase()} report...`,
+                life: 3000
+            });
+        }
     };
 
     // Template functions
@@ -641,6 +658,24 @@ export const FinancialControllerDashboard: React.FC = () => {
                     )}
                 </div>
             </Card>
+
+            {/* Hidden Print Report Component */}
+            <div style={{ display: 'none' }}>
+                <FinancialStandingsPrintReport
+                    ref={printRef}
+                    summary={summary}
+                    schoolName={schools.find((s) => s._id === filters.school)?.name || 'All Schools'}
+                    filters={{
+                        school: filters.school,
+                        site: filters.site,
+                        academicYear: filters.academicYear,
+                        dateFrom: filters.dateFrom,
+                        dateTo: filters.dateTo
+                    }}
+                    generatedBy="Financial Controller"
+                    periodView={periodView}
+                />
+            </div>
         </>
     );
 };

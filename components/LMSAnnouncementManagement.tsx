@@ -228,6 +228,11 @@ const LMSAnnouncementManagement: React.FC<LMSAnnouncementManagementProps> = ({ s
             return;
         }
 
+        if (!formData.subjectId) {
+            showToast('error', 'Validation Error', 'Please select a course for this announcement');
+            return;
+        }
+
         try {
             setLoading(true);
             const url = isEditMode ? `/api/lms/announcements/${formData._id}` : '/api/lms/announcements';
@@ -533,18 +538,9 @@ const LMSAnnouncementManagement: React.FC<LMSAnnouncementManagementProps> = ({ s
                     {!propSubjectId && (
                         <div className="col-12 md:col-6">
                             <label htmlFor="subjectId" className="font-semibold text-900 mb-2 block">
-                                Course
+                                Course <span className="text-red-500">*</span>
                             </label>
-                            <Dropdown
-                                id="subjectId"
-                                value={formData.subjectId}
-                                options={subjectOptions}
-                                onChange={(e) => setFormData({ ...formData, subjectId: e.value })}
-                                placeholder="Select a course (optional)"
-                                className="w-full"
-                                filter
-                                showClear
-                            />
+                            <Dropdown id="subjectId" value={formData.subjectId} options={subjectOptions} onChange={(e) => setFormData({ ...formData, subjectId: e.value })} placeholder="Select a course" className="w-full" filter />
                         </div>
                     )}
 

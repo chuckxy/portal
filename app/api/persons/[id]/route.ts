@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { withActivityLogging } from '@/lib/middleware/activityLogging';
 
 // Import all necessary models
 let Person: any;
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 }
 
 // PUT /api/persons/[id] - Update a person
-export async function PUT(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+const putHandler = async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
         await connectDB();
         const { id } = await context.params;
@@ -158,7 +159,18 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
 
         return NextResponse.json({ success: false, message: 'Failed to update person', error: error.message }, { status: 500 });
     }
-}
+};
+
+export const PUT = withActivityLogging(putHandler, {
+    category: 'crud',
+    actionType: 'update',
+    entityType: 'person',
+    entityIdExtractor: (req, res) => res?.person?._id?.toString(),
+    entityNameExtractor: (req, res) => {
+        const person = res?.person;
+        return person ? `${person.firstName} ${person.lastName}` : undefined;
+    }
+});
 
 // PATCH /api/persons/[id] - Partially update a person (for profile updates)
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -217,7 +229,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 }
 
 // DELETE /api/persons/[id] - Delete a person
-export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+const deleteHandler = async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
         await connectDB();
         const { id } = await context.params;
@@ -246,4 +258,15 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
         console.error('Error deleting person:', error);
         return NextResponse.json({ success: false, message: 'Failed to delete person', error: error.message }, { status: 500 });
     }
-}
+};
+
+export const DELETE = withActivityLogging(deleteHandler, {
+    category: 'crud',
+    actionType: 'delete',
+    entityType: 'person',
+    entityIdExtractor: async (req) => {
+        const { params } = req as any;
+        const { id } = await params;
+        return id;
+    }
+});

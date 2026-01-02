@@ -19,6 +19,9 @@ import { TabView, TabPanel } from 'primereact/tabview';
 import { Chip } from 'primereact/chip';
 import { Avatar } from 'primereact/avatar';
 import { InputTextarea } from 'primereact/inputtextarea';
+import { useReactToPrint } from 'react-to-print';
+import { getAcademicYears } from '@/lib/utils/utilFunctions';
+import { TuitionDefaultersPrintReport } from './TuitionDefaultersPrintReport';
 
 interface DebtorStudent {
     _id: string;
@@ -144,8 +147,8 @@ export const StudentDebtorsManagement: React.FC = () => {
 
     const toast = useRef<Toast>(null);
     const dt = useRef<DataTable<DebtorStudent[]>>(null);
+    const printRef = useRef<HTMLDivElement>(null);
 
-    const academicYears = ['2025/2026', '2024/2025', '2023/2024'];
     const academicTerms = [
         { label: 'Term 1', value: 1 },
         { label: 'Term 2', value: 2 },
@@ -158,6 +161,24 @@ export const StudentDebtorsManagement: React.FC = () => {
         { label: 'SMS', value: 'sms', icon: '💬' },
         { label: 'In Person', value: 'in_person', icon: '👤' }
     ];
+
+    // Print handler
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `Tuition_Defaulters_Report_${new Date().toISOString().split('T')[0]}`,
+        pageStyle: `
+            @page {
+                size: A4;
+                margin: 15mm;
+            }
+            @media print {
+                body {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+            }
+        `
+    });
 
     useEffect(() => {
         fetchSchools();
@@ -472,6 +493,7 @@ export const StudentDebtorsManagement: React.FC = () => {
         return (
             <div className="flex gap-2">
                 <Button label="Export CSV" icon="pi pi-upload" className="p-button-help" onClick={exportCSV} />
+                <Button label="Print Report" icon="pi pi-print" className="p-button-info" onClick={handlePrint} disabled={debtors.length === 0} />
                 <Button label="Send Bulk Reminder" icon="pi pi-send" className="p-button-warning" onClick={sendBulkReminder} />
             </div>
         );
@@ -664,7 +686,7 @@ export const StudentDebtorsManagement: React.FC = () => {
                     </div>
                     <div className="col-12 md:col-3">
                         <label className="block text-sm font-medium mb-2">Academic Year</label>
-                        <Dropdown value={filters.academicYear} options={academicYears.map((y) => ({ label: y, value: y }))} onChange={(e) => setFilters({ ...filters, academicYear: e.value })} placeholder="All Years" className="w-full" showClear />
+                        <Dropdown value={filters.academicYear} options={getAcademicYears} onChange={(e) => setFilters({ ...filters, academicYear: e.value })} placeholder="All Years" className="w-full" showClear />
                     </div>
                     <div className="col-12 md:col-3">
                         <label className="block text-sm font-medium mb-2">Term</label>
@@ -1018,6 +1040,25 @@ export const StudentDebtorsManagement: React.FC = () => {
                     </div>
                 )}
             </Dialog>
+
+            {/* Hidden Print Component */}
+            <div style={{ display: 'none' }}>
+                <TuitionDefaultersPrintReport
+                    ref={printRef}
+                    debtors={debtors}
+                    schoolName={schools.find((s) => s._id === filters.school)?.name || 'School Name'}
+                    schoolAddress="School Address Line 1, City, Region"
+                    schoolContact="Tel: +233 XXX XXX XXX | Email: info@school.edu.gh"
+                    filters={{
+                        school: filters.school,
+                        site: sites.find((s) => s._id === filters.site)?.description,
+                        className: classes.find((c) => c._id === filters.class)?.className,
+                        academicYear: filters.academicYear,
+                        academicTerm: filters.academicTerm
+                    }}
+                    generatedBy="System Administrator"
+                />
+            </div>
         </>
     );
 };

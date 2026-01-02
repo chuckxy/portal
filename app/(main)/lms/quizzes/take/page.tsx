@@ -159,7 +159,7 @@ const QuizContent = () => {
     const { user, isLoading: authLoading } = useAuth();
 
     const [quizId, setQuizId] = useState<string | null>(searchParams.get('quizId'));
-    const returnUrl = searchParams.get('returnUrl') || '/lms/quizzes';
+    const returnUrl = searchParams.get('returnUrl') || '/lms/quizzes/take';
 
     const [showResults, setShowResults] = React.useState(false);
     const [results, setResults] = React.useState<{

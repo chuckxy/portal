@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { withActivityLogging } from '@/lib/middleware/activityLogging';
 
 // Import all necessary models
 let Person: any;
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/persons - Create a new person
-export async function POST(request: NextRequest) {
+const postHandler = async (request: NextRequest) => {
     try {
         await connectDB();
 
@@ -212,4 +213,15 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: false, message: 'Failed to create person', error: error.message }, { status: 500 });
     }
-}
+};
+
+export const POST = withActivityLogging(postHandler, {
+    category: 'crud',
+    actionType: 'create',
+    entityType: 'person',
+    entityIdExtractor: (req, res) => res?.person?._id?.toString(),
+    entityNameExtractor: (req, res) => {
+        const person = res?.person;
+        return person ? `${person.firstName} ${person.lastName}` : undefined;
+    }
+});

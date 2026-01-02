@@ -5,6 +5,7 @@ import Person from '@/models/Person';
 import SchoolSite from '@/models/SchoolSite';
 import SiteClass from '@/models/SiteClass';
 import Scholarship from '@/models/Scholarship';
+import { withActivityLogging, logSensitiveAction } from '@/lib/middleware/activityLogging';
 
 // GET /api/fees-payments - List all payments with filters and pagination
 export async function GET(request: NextRequest) {
@@ -100,7 +101,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/fees-payments - Create new payment
-export async function POST(request: NextRequest) {
+const postHandler = async (request: NextRequest) => {
     try {
         await connectDB();
 
@@ -232,7 +233,19 @@ export async function POST(request: NextRequest) {
         console.error('Error creating payment:', error);
         return NextResponse.json({ error: 'Failed to create payment' }, { status: 500 });
     }
-}
+};
+
+export const POST = withActivityLogging(postHandler, {
+    category: 'sensitive',
+    actionType: 'payment_process',
+    entityType: 'fees_payment',
+    entityIdExtractor: (req, res) => res?.payment?._id?.toString(),
+    entityNameExtractor: (req, res) => {
+        const payment = res?.payment;
+        return `${payment?.student?.firstName || ''} ${payment?.student?.lastName || ''} - ${payment?.amountPaid || 0} ${payment?.currency || ''}`;
+    },
+    gdprRelevant: true
+});
 
 // DELETE /api/fees-payments - Delete a payment
 export async function DELETE(request: NextRequest) {

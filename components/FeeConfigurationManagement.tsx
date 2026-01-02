@@ -22,6 +22,7 @@ import { Message } from 'primereact/message';
 import { Panel } from 'primereact/panel';
 import { Checkbox } from 'primereact/checkbox';
 import { useAuth } from '@/context/AuthContext';
+import { getAcademicYears } from '@/lib/utils/utilFunctions';
 
 const TERM_OPTIONS = [
     { label: 'Term 1', value: 1 },
@@ -83,7 +84,7 @@ const FeeConfigurationManagement: React.FC = () => {
     const [formData, setFormData] = useState<any>({
         school: null,
         site: null,
-        academicYear: new Date().getFullYear() + '/' + (new Date().getFullYear() + 1),
+        academicYear: getAcademicYears[0].value,
         academicTerm: 1,
         configName: '',
         paymentDeadline: null,
@@ -621,7 +622,14 @@ const FeeConfigurationManagement: React.FC = () => {
                         <label htmlFor="academicYear" className="font-semibold">
                             Academic Year <span className="text-red-500">*</span>
                         </label>
-                        <InputText id="academicYear" value={formData.academicYear} onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })} placeholder="e.g., 2024/2025" className={errors.academicYear ? 'p-invalid' : ''} />
+                        <Dropdown
+                            id="academicYear"
+                            value={formData.academicYear}
+                            options={getAcademicYears}
+                            onChange={(e) => setFormData({ ...formData, academicYear: e.value })}
+                            placeholder="Select Academic Year"
+                            className={errors.academicYear ? 'p-invalid' : ''}
+                        />
                         {errors.academicYear && <small className="p-error">{errors.academicYear}</small>}
                     </div>
 

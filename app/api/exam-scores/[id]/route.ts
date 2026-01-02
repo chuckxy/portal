@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import ExamScore from '@/models/ExamScore';
+import { withActivityLogging } from '@/lib/middleware/activityLogging';
 import Person from '@/models/Person';
 import School from '@/models/School';
 import SchoolSite from '@/models/SchoolSite';

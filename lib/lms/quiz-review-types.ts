@@ -1,12 +1,13 @@
 // Quiz Attempt Review Types and Interfaces
 
+import { PersonCategory } from '@/models/Person';
 import { QuestionType, QuestionOption, MatchingPair } from './quiz-types';
 
 // Re-export for convenience
 export type { QuestionType, QuestionOption, MatchingPair };
 
 // User Role Types for Access Control
-export type ReviewerRole = 'student' | 'instructor' | 'admin';
+export type ReviewerRole = 'student' | 'teacher' | 'admin';
 
 // Violation Types
 export type ViolationType = 'fullscreen_exit' | 'tab_switch' | 'focus_lost' | 'visibility_hidden' | 'copy_attempt' | 'paste_attempt' | 'right_click' | 'dev_tools' | 'screenshot_attempt';
@@ -182,7 +183,7 @@ export interface ReviewViewConfig {
 }
 
 // Get view config based on role
-export const getReviewViewConfig = (role: ReviewerRole, isOwnAttempt: boolean = false): ReviewViewConfig => {
+export const getReviewViewConfig = (role: PersonCategory, isOwnAttempt: boolean = false): ReviewViewConfig => {
     switch (role) {
         case 'student':
             return {
@@ -196,7 +197,7 @@ export const getReviewViewConfig = (role: ReviewerRole, isOwnAttempt: boolean = 
                 canApproveGrades: false,
                 canFinalizeGrading: false
             };
-        case 'instructor':
+        case 'teacher':
             return {
                 showIntegrityLog: true,
                 showGradingControls: true,
@@ -208,7 +209,7 @@ export const getReviewViewConfig = (role: ReviewerRole, isOwnAttempt: boolean = 
                 canApproveGrades: false,
                 canFinalizeGrading: true
             };
-        case 'admin':
+        case 'proprietor':
             return {
                 showIntegrityLog: true,
                 showGradingControls: true,
@@ -406,7 +407,7 @@ export interface PendingChanges {
 // Component Props Interfaces
 export interface QuizAttemptReviewProps {
     attemptId: string;
-    role: ReviewerRole;
+    role: PersonCategory;
     currentUserId: string;
     onClose?: () => void;
     onGradeUpdated?: (attemptId: string) => void;

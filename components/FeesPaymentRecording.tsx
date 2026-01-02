@@ -16,6 +16,7 @@ import { Divider } from 'primereact/divider';
 import { PaymentFormData, Student, StudentBalance } from '@/types/payment';
 import { PaymentMethod, PaymentStatus } from '@/models/FeesPayment';
 import LocalDBService from '@/lib/services/localDBService';
+import { getAcademicYears } from '@/lib/utils/utilFunctions';
 
 interface FeesPaymentRecordingProps {
     visible: boolean;
@@ -64,7 +65,7 @@ export const FeesPaymentRecording: React.FC<FeesPaymentRecordingProps> = ({ visi
         currency: 'GHS',
         status: 'confirmed',
         datePaid: new Date(),
-        academicYear: '2024/2025',
+        academicYear: getAcademicYears[0].value,
         academicTerm: 1,
         paymentMethod: 'cash'
     });
@@ -76,7 +77,6 @@ export const FeesPaymentRecording: React.FC<FeesPaymentRecordingProps> = ({ visi
 
     const toast = React.useRef<Toast>(null);
 
-    const academicYears = ['2025/2026', '2024/2025', '2023/2024'];
     const academicTerms = [
         { label: 'Term 1', value: 1 },
         { label: 'Term 2', value: 2 },
@@ -159,7 +159,7 @@ export const FeesPaymentRecording: React.FC<FeesPaymentRecordingProps> = ({ visi
             currency: 'GHS',
             status: 'confirmed',
             datePaid: new Date(),
-            academicYear: '2024/2025',
+            academicYear: getAcademicYears[0].value,
             academicTerm: 1,
             paymentMethod: 'cash'
         });
@@ -711,7 +711,7 @@ export const FeesPaymentRecording: React.FC<FeesPaymentRecordingProps> = ({ visi
                                             <Dropdown
                                                 id="academicYear"
                                                 value={formData.academicYear}
-                                                options={academicYears.map((y) => ({ label: y, value: y }))}
+                                                options={getAcademicYears}
                                                 onChange={(e) => setFormData({ ...formData, academicYear: e.value })}
                                                 placeholder="Select year"
                                                 className={`w-full ${errors.academicYear ? 'p-invalid' : ''}`}

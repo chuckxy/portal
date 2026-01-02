@@ -24,6 +24,7 @@ import { Sidebar } from 'primereact/sidebar';
 import { FileUpload } from 'primereact/fileupload';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { getAcademicYears } from '@/lib/utils/utilFunctions';
 
 type WeekDay = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 type ActivityType = 'break' | 'lunch' | 'assembly' | 'other';
@@ -83,13 +84,6 @@ interface SchoolDayStructure {
 
 const WEEKDAYS: WeekDay[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-const DEFAULT_BREAKS = [
-    { description: 'Morning Assembly', timeStart: '07:30', timeEnd: '08:00', activityType: 'assembly' as ActivityType },
-    { description: 'Mid-Morning Break', timeStart: '10:10', timeEnd: '10:30', activityType: 'break' as ActivityType },
-    { description: 'Lunch Break', timeStart: '12:30', timeEnd: '13:15', activityType: 'lunch' as ActivityType },
-    { description: 'Afternoon Break', timeStart: '14:30', timeEnd: '14:45', activityType: 'break' as ActivityType }
-];
-
 const SUBJECT_EMOJIS: Record<string, string> = {
     Mathematics: '📘',
     Math: '📘',
@@ -127,7 +121,7 @@ export default function TimetableManagement() {
         school: null as any,
         site: null as any,
         class: null as any,
-        academicYear: '',
+        academicYear: getAcademicYears[0].value,
         academicTerm: 1,
         effectiveFrom: new Date(),
         effectiveTo: null as Date | null,
@@ -930,7 +924,7 @@ export default function TimetableManagement() {
                 <label htmlFor="academicYear" className="block mb-2">
                     Academic Year *
                 </label>
-                <InputText id="academicYear" value={setupData.academicYear} onChange={(e) => setSetupData({ ...setupData, academicYear: e.target.value })} className="w-full" />
+                <Dropdown id="academicYear" value={setupData.academicYear} options={getAcademicYears} onChange={(e) => setSetupData({ ...setupData, academicYear: e.value })} className="w-full" />
             </div>
 
             <div className="col-12 md:col-6">

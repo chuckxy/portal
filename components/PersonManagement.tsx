@@ -63,6 +63,18 @@ const PersonManagement: React.FC = () => {
     const [categoryFilter, setCategoryFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
 
+    // Bulk upload configuration state
+    const [uploadStep, setUploadStep] = useState<'config' | 'upload'>('config');
+    const [uploadPersonCategory, setUploadPersonCategory] = useState<string>('');
+    const [uploadClass, setUploadClass] = useState<any>(null);
+    const [uploadFaculty, setUploadFaculty] = useState<any>(null);
+    const [uploadDepartment, setUploadDepartment] = useState<any>(null);
+    const [classes, setClasses] = useState<any[]>([]);
+    const [faculties, setFaculties] = useState<any[]>([]);
+    const [departments, setDepartments] = useState<any[]>([]);
+    const [filteredDepartments, setFilteredDepartments] = useState<any[]>([]);
+    const [filteredClasses, setFilteredClasses] = useState<any[]>([]);
+
     const categoryOptions = [
         { label: 'All Categories', value: '' },
         { label: 'Proprietor', value: 'proprietor' },
@@ -132,6 +144,91 @@ const PersonManagement: React.FC = () => {
         });
     };
 
+    // Fetch configuration data for upload parameters
+    const fetchConfigurationData = async () => {
+        try {
+            // Fetch faculties
+            const facultyResponse = await fetch(`/api/faculties?school=${user?.school}`);
+            if (facultyResponse.ok) {
+                const facultyData = await facultyResponse.json();
+                setFaculties(facultyData.faculties || []);
+            }
+
+            // Fetch all departments
+            const deptResponse = await fetch(`/api/departments?school=${user?.school}`);
+            if (deptResponse.ok) {
+                const deptData = await deptResponse.json();
+                setDepartments(deptData.departments || []);
+            }
+
+            // Fetch all classes
+            const classResponse = await fetch(`/api/classes?school=${user?.school}&site=${user?.schoolSite}`);
+            if (classResponse.ok) {
+                const classData = await classResponse.json();
+                setClasses(classData.classes || []);
+            }
+        } catch (error) {
+            console.error('Error fetching configuration data:', error);
+        }
+    };
+
+    // Open bulk upload dialog and fetch configuration data
+    const openBulkUpload = () => {
+        // Reset all configuration state
+        setUploadStep('config');
+        setUploadPersonCategory('');
+        setUploadClass(null);
+        setUploadFaculty(null);
+        setUploadDepartment(null);
+        setFilteredDepartments([]);
+        setFilteredClasses([]);
+
+        // Fetch configuration data
+        fetchConfigurationData();
+
+        // Open dialog
+        setBulkUploadVisible(true);
+    };
+
+    // Close bulk upload dialog and reset state
+    const closeBulkUpload = () => {
+        setBulkUploadVisible(false);
+        setUploadStep('config');
+        setUploadPersonCategory('');
+        setUploadClass(null);
+        setUploadFaculty(null);
+        setUploadDepartment(null);
+        setFilteredDepartments([]);
+        setFilteredClasses([]);
+    };
+
+    // Handle faculty selection - filter departments
+    const handleFacultyChange = (faculty: any) => {
+        setUploadFaculty(faculty);
+        setUploadDepartment(null);
+        setUploadClass(null);
+
+        if (faculty) {
+            const filtered = departments.filter((dept: any) => dept.faculty?._id === faculty._id || dept.faculty === faculty._id);
+            setFilteredDepartments(filtered);
+        } else {
+            setFilteredDepartments([]);
+        }
+        setFilteredClasses([]);
+    };
+
+    // Handle department selection - filter classes
+    const handleDepartmentChange = (department: any) => {
+        setUploadDepartment(department);
+        setUploadClass(null);
+
+        if (department) {
+            const filtered = classes.filter((cls: any) => cls.department?._id === department._id || cls.department === department._id);
+            setFilteredClasses(filtered);
+        } else {
+            setFilteredClasses([]);
+        }
+    };
     const deletePerson = async (id: string) => {
         try {
             const response = await fetch(`/api/persons/${id}`, {
@@ -195,6 +292,26 @@ const PersonManagement: React.FC = () => {
     };
 
     // Handle bulk upload
+    const proceedToUpload = () => {
+        if (!uploadPersonCategory) {
+            showToast('warn', 'Warning', 'Please select person category');
+            return;
+        }
+
+        if (uploadPersonCategory === 'student') {
+            if (!uploadClass || !uploadFaculty || !uploadDepartment) {
+                showToast('warn', 'Warning', 'For students, please select class, faculty, and department');
+                return;
+            }
+        }
+
+        setUploadStep('upload');
+    };
+
+    const backToConfig = () => {
+        setUploadStep('config');
+    };
+
     const handleBulkUpload = async (event: any) => {
         const file = event.files[0];
         if (!file) return;
@@ -258,21 +375,31 @@ const PersonManagement: React.FC = () => {
                     return person;
                 });
 
-                // Send to bulk upload API
+                // Send to bulk upload API with configuration
+                const uploadData: any = {
+                    persons,
+                    school: user?.school,
+                    schoolSite: user?.schoolSite,
+                    personCategory: uploadPersonCategory
+                };
+
+                // Add student-specific fields if category is student
+                if (uploadPersonCategory === 'student') {
+                    uploadData.defaultClass = uploadClass?._id;
+                    uploadData.defaultFaculty = uploadFaculty?._id;
+                    uploadData.defaultDepartment = uploadDepartment?._id;
+                }
+
                 const response = await fetch('/api/persons/bulk-upload', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        persons,
-                        school: user?.school,
-                        schoolSite: user?.schoolSite
-                    })
+                    body: JSON.stringify(uploadData)
                 });
 
                 if (response.ok) {
                     const data = await response.json();
                     showToast('success', 'Success', data.message);
-                    setBulkUploadVisible(false);
+                    closeBulkUpload();
                     fetchPersons();
 
                     // Show detailed results
@@ -409,7 +536,7 @@ const PersonManagement: React.FC = () => {
         return (
             <div className="flex gap-2">
                 <Button label="Add Person" icon="pi pi-plus" severity="success" onClick={openNew} />
-                <Button label="Bulk Upload" icon="pi pi-upload" severity="info" outlined onClick={() => setBulkUploadVisible(true)} />
+                <Button label="Bulk Upload" icon="pi pi-upload" severity="info" outlined onClick={openBulkUpload} />
                 <Button label="Download Template" icon="pi pi-download" severity="help" outlined onClick={downloadTemplate} />
             </div>
         );
@@ -476,29 +603,124 @@ const PersonManagement: React.FC = () => {
             </Dialog>
 
             {/* Bulk Upload Dialog */}
-            <Dialog header="Bulk Upload Persons" visible={bulkUploadVisible} style={{ width: '600px' }} onHide={() => setBulkUploadVisible(false)} modal>
+            <Dialog header="Bulk Upload Persons" visible={bulkUploadVisible} style={{ width: '700px' }} onHide={closeBulkUpload} modal>
                 <div className="grid">
+                    {/* Configuration Section */}
                     <div className="col-12">
-                        <div className="bg-blue-50 border-round p-3 mb-3">
-                            <h4 className="text-blue-900 mt-0 mb-2">
-                                <i className="pi pi-info-circle mr-2"></i>
-                                How to use Bulk Upload
-                            </h4>
-                            <ol className="text-blue-800 text-sm pl-3 mb-0">
-                                <li>Download the CSV template</li>
-                                <li>Fill in person details following the template format</li>
-                                <li>Required fields: FirstName, Username, Password, Category</li>
-                                <li>Upload the completed CSV file</li>
-                            </ol>
-                        </div>
+                        <Card title="Step 1: Configure Upload Parameters" className="mb-3">
+                            <div className="grid">
+                                <div className="col-12">
+                                    <label htmlFor="uploadCategory" className="block mb-2 font-semibold">
+                                        Person Category <span className="text-red-500">*</span>
+                                    </label>
+                                    <Dropdown
+                                        id="uploadCategory"
+                                        value={uploadPersonCategory}
+                                        options={categoryOptions.filter((c) => c.value !== '')}
+                                        onChange={(e) => setUploadPersonCategory(e.value)}
+                                        placeholder="Select person category"
+                                        className="w-full"
+                                    />
+                                </div>
+
+                                {uploadPersonCategory === 'student' && (
+                                    <>
+                                        <div className="col-12">
+                                            <div className="bg-yellow-50 border-round p-3 mb-2">
+                                                <p className="text-yellow-900 text-sm m-0">
+                                                    <i className="pi pi-exclamation-triangle mr-2"></i>
+                                                    All uploaded students will be assigned to the faculty, department, and class you select below. Select in order: Faculty → Department → Class.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="col-12 md:col-4">
+                                            <label htmlFor="uploadFaculty" className="block mb-2 font-semibold">
+                                                1. Faculty <span className="text-red-500">*</span>
+                                            </label>
+                                            <Dropdown id="uploadFaculty" value={uploadFaculty} options={faculties} onChange={(e) => handleFacultyChange(e.value)} optionLabel="name" placeholder="Select faculty first" className="w-full" filter />
+                                        </div>
+
+                                        <div className="col-12 md:col-4">
+                                            <label htmlFor="uploadDepartment" className="block mb-2 font-semibold">
+                                                2. Department <span className="text-red-500">*</span>
+                                            </label>
+                                            <Dropdown
+                                                id="uploadDepartment"
+                                                value={uploadDepartment}
+                                                options={filteredDepartments}
+                                                onChange={(e) => handleDepartmentChange(e.value)}
+                                                optionLabel="name"
+                                                placeholder="Select department"
+                                                className="w-full"
+                                                filter
+                                                disabled={!uploadFaculty}
+                                            />
+                                        </div>
+
+                                        <div className="col-12 md:col-4">
+                                            <label htmlFor="uploadClass" className="block mb-2 font-semibold">
+                                                3. Class <span className="text-red-500">*</span>
+                                            </label>
+                                            <Dropdown
+                                                id="uploadClass"
+                                                value={uploadClass}
+                                                options={filteredClasses}
+                                                onChange={(e) => setUploadClass(e.value)}
+                                                optionLabel="className"
+                                                placeholder="Select class"
+                                                className="w-full"
+                                                filter
+                                                disabled={!uploadDepartment}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </Card>
                     </div>
 
+                    {/* Upload Section */}
                     <div className="col-12">
-                        <FileUpload ref={fileUploadRef} name="bulkUpload" accept=".csv" maxFileSize={5000000} customUpload uploadHandler={handleBulkUpload} auto chooseLabel="Select CSV File" className="w-full" />
-                    </div>
+                        <Card title="Step 2: Upload CSV File">
+                            <div className="grid">
+                                <div className="col-12">
+                                    <div className="bg-blue-50 border-round p-3 mb-3">
+                                        <h4 className="text-blue-900 mt-0 mb-2">
+                                            <i className="pi pi-info-circle mr-2"></i>
+                                            How to use Bulk Upload
+                                        </h4>
+                                        <ol className="text-blue-800 text-sm pl-3 mb-0">
+                                            <li>Select person category above</li>
+                                            <li>Download the CSV template</li>
+                                            <li>Fill in person details following the template format</li>
+                                            <li>Required fields: FirstName, Username, Password</li>
+                                            <li>Upload the completed CSV file</li>
+                                        </ol>
+                                    </div>
+                                </div>
 
-                    <div className="col-12">
-                        <Button label="Download Template" icon="pi pi-download" className="w-full" severity="help" outlined onClick={downloadTemplate} />
+                                <div className="col-12">
+                                    <FileUpload
+                                        ref={fileUploadRef}
+                                        name="bulkUpload"
+                                        accept=".csv"
+                                        maxFileSize={5000000}
+                                        customUpload
+                                        uploadHandler={handleBulkUpload}
+                                        auto={false}
+                                        chooseLabel="Select CSV File"
+                                        uploadLabel="Upload"
+                                        disabled={!uploadPersonCategory || (uploadPersonCategory === 'student' && (!uploadClass || !uploadFaculty || !uploadDepartment))}
+                                        className="w-full"
+                                    />
+                                </div>
+
+                                <div className="col-12">
+                                    <Button label="Download Template" icon="pi pi-download" className="w-full" severity="help" outlined onClick={downloadTemplate} />
+                                </div>
+                            </div>
+                        </Card>
                     </div>
                 </div>
             </Dialog>

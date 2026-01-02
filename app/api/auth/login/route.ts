@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/db/mongodb';
 import Person from '@/models/Person';
 import jwt from 'jsonwebtoken';
+import { logAuthEvent } from '@/lib/middleware/activityLogging';
 
 export async function POST(request: NextRequest) {
     try {
@@ -20,6 +21,8 @@ export async function POST(request: NextRequest) {
         const user = await Person.findOne({ $or: [{ username: username.toLowerCase() }, { 'contact.email': username.toLowerCase() }], isActive: true }).select('+password');
 
         if (!user) {
+            // Log failed login attempt (user not found)
+            await logAuthEvent('login_failed', request, undefined, username, undefined, undefined, undefined, 'failure', 'User not found');
             return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
         }
 
@@ -27,6 +30,8 @@ export async function POST(request: NextRequest) {
         const isPasswordValid = await user.comparePassword(password);
 
         if (!isPasswordValid) {
+            // Log failed login attempt (wrong password)
+            await logAuthEvent('login_failed', request, user._id.toString(), user.username, user.personCategory, user.school?.toString(), user.schoolSite?.toString(), 'failure', 'Invalid password');
             return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
         }
 
@@ -46,6 +51,9 @@ export async function POST(request: NextRequest) {
             process.env.JWT_SECRET || 'your-secret-key',
             { expiresIn: '7d' }
         );
+
+        // Log successful login
+        await logAuthEvent('login', request, user._id.toString(), user.username, user.personCategory, user.school?.toString(), user.schoolSite?.toString(), 'success');
 
         // Return success response
         return NextResponse.json(

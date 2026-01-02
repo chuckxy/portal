@@ -25,6 +25,7 @@ import '@/models/LibraryLending';
 import '@/models/LibraryUser';
 import '@/models/Scholarship';
 import '@/models/TimeTable';
+import '@/models/ActivityLog';
 
 // -------------------- TYPES --------------------
 interface MongooseCache {

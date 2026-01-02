@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import ExamScore from '@/models/ExamScore';
+import { withActivityLogging } from '@/lib/middleware/activityLogging';
 import Person from '@/models/Person';
 import School from '@/models/School';
 import SchoolSite from '@/models/SchoolSite';
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Create new exam score
-export async function POST(request: NextRequest) {
+const postHandler = async (request: NextRequest) => {
     try {
         await connectDB();
 
@@ -126,4 +127,12 @@ export async function POST(request: NextRequest) {
         console.error('Error creating exam score:', error);
         return NextResponse.json({ error: 'Failed to create exam score', details: error.message }, { status: 500 });
     }
-}
+};
+
+export const POST = withActivityLogging(postHandler, {
+    category: 'crud',
+    actionType: 'create',
+    entityType: 'exam_score',
+    entityIdExtractor: (req, res) => res?._id?.toString(),
+    entityNameExtractor: (req, res) => `${res?.student?.firstName || ''} ${res?.student?.lastName || ''} - ${res?.academicTerm || ''}`
+});

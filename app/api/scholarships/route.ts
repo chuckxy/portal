@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Scholarship from '@/models/Scholarship';
 import ScholarshipBody from '@/models/ScholarshipBody';
+import { withActivityLogging } from '@/lib/middleware/activityLogging';
 
 // GET - List scholarships with filters
 export async function GET(request: NextRequest) {
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Create new scholarship
-export async function POST(request: NextRequest) {
+const postHandler = async (request: NextRequest) => {
     try {
         await connectDB();
 
@@ -126,4 +127,16 @@ export async function POST(request: NextRequest) {
         console.error('Error creating scholarship:', error);
         return NextResponse.json({ success: false, error: 'Failed to create scholarship', details: error.message }, { status: 500 });
     }
-}
+};
+
+export const POST = withActivityLogging(postHandler, {
+    category: 'sensitive',
+    actionType: 'scholarship_award',
+    entityType: 'scholarship',
+    entityIdExtractor: (req, res) => res?.scholarship?._id?.toString(),
+    entityNameExtractor: (req, res) => {
+        const scholarship = res?.scholarship;
+        return `${scholarship?.student?.firstName || ''} ${scholarship?.student?.lastName || ''} - ${scholarship?.scholarshipType || ''}`;
+    },
+    gdprRelevant: true
+});

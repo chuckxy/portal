@@ -20,6 +20,7 @@ import { Chip } from 'primereact/chip';
 import { FileUpload } from 'primereact/fileupload';
 import { useAuth } from '@/context/AuthContext';
 import LocalDBService from '@/lib/services/localDBService';
+import { getAcademicYears } from '@/lib/utils/utilFunctions';
 
 interface StudentScore {
     student: any;
@@ -64,7 +65,7 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
         site: null,
         class: null,
         subject: null,
-        academicYear: new Date().getFullYear() + '/' + (new Date().getFullYear() + 1),
+        academicYear: getAcademicYears[0].value,
         academicTerm: 1,
         studentScores: []
     });
@@ -846,7 +847,7 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
                     <label htmlFor="academicYear" className="font-semibold">
                         Academic Year *
                     </label>
-                    <InputText id="academicYear" value={formData.academicYear} onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })} placeholder="2024/2025" disabled={setupComplete} />
+                    <Dropdown id="academicYear" value={formData.academicYear} options={getAcademicYears} onChange={(e) => setFormData({ ...formData, academicYear: e.value })} placeholder="Select Academic Year" disabled={setupComplete} />
                 </div>
 
                 <div className="field col-12 md:col-4">

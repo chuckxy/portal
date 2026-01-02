@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import SiteClass from '@/models/SiteClass';
+import { withActivityLogging } from '@/lib/middleware/activityLogging';
 
 // GET all classes
 export async function GET(request: NextRequest) {
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST create a new class
-export async function POST(request: NextRequest) {
+const postHandler = async (request: NextRequest) => {
     try {
         await connectDB();
 
@@ -97,4 +98,12 @@ export async function POST(request: NextRequest) {
         console.error('Error creating class:', error);
         return NextResponse.json({ success: false, message: 'Failed to create class', error: error.message }, { status: 500 });
     }
-}
+};
+
+export const POST = withActivityLogging(postHandler, {
+    category: 'crud',
+    actionType: 'create',
+    entityType: 'class',
+    entityIdExtractor: (req, res) => res?.class?._id?.toString(),
+    entityNameExtractor: (req, res) => res?.class?.className
+});

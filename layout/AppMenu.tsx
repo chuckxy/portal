@@ -2,7 +2,7 @@ import { MenuModal } from '@/types';
 import AppSubMenu from './AppSubMenu';
 
 const AppMenu = () => {
-    const model: MenuModal[] = [
+    const model: any = [
         {
             label: 'Dashboards',
             icon: 'pi pi-home',
@@ -100,6 +100,15 @@ const AppMenu = () => {
             items: [
                 { label: 'Profile', icon: 'pi pi-fw pi-user', to: '/profile' },
                 { label: 'School Sites', icon: 'pi pi-fw pi-map-marker', to: '/sites' }
+            ]
+        },
+        { separator: true },
+        {
+            label: 'Administration',
+            icon: 'pi pi-shield',
+            items: [
+                { label: 'School Data Purge', icon: 'pi pi-fw pi-trash', to: '/admin/school-purge', class: 'text-red-600' },
+                { label: 'Activity Logs', icon: 'pi pi-fw pi-history', to: '/activity-logs' }
             ]
         }
     ];

@@ -19,6 +19,8 @@ import { Divider } from 'primereact/divider';
 
 import { QuizAttemptReview } from '@/components/quiz-review';
 import { ReviewerRole, attemptStatusConfig, gradingStatusConfig } from '@/lib/lms/quiz-review-types';
+import { useAuth } from '@/context/AuthContext';
+import { PersonCategory } from '@/models/Person';
 
 interface QuizAttemptListItem {
     _id: string;
@@ -107,8 +109,9 @@ const QuizReviewPage = () => {
     const [quizOptions, setQuizOptions] = useState<QuizOption[]>([]);
 
     // Current user role (would come from auth context in real app)
-    const [currentUserRole] = useState<ReviewerRole>('instructor');
-    const [currentUserId] = useState('current-user-id');
+    const [currentUserRole, setCurrentUserRole] = useState<PersonCategory>('teacher');
+    const [currentUserId, setCurrentUserId] = useState('current-user-id');
+    const { user } = useAuth();
 
     // Status filter options
     const statusOptions = Object.entries(attemptStatusConfig)
@@ -196,10 +199,17 @@ const QuizReviewPage = () => {
 
     // Fetch quiz attempts
     const fetchAttempts = async () => {
+        if (!user) return; // Wait for user to be loaded
+
         setLoading(true);
         try {
             const params = new URLSearchParams();
             params.append('limit', '500'); // Fetch more for grouping
+
+            // If current user is a student, only fetch their own attempts
+            if (user.personCategory === 'student') {
+                params.append('userId', user._id);
+            }
 
             if (globalFilter) params.append('search', globalFilter);
             if (statusFilter) params.append('status', statusFilter);
@@ -207,7 +217,7 @@ const QuizReviewPage = () => {
             if (quizFilter) params.append('quizId', quizFilter);
             if (dateRange?.[0]) params.append('startDate', dateRange[0].toISOString());
             if (dateRange?.[1]) params.append('endDate', dateRange[1].toISOString());
-
+            console.log(params);
             const response = await fetch(`/api/lms/quiz-attempts?${params.toString()}`);
             const data = await response.json();
 
@@ -253,19 +263,28 @@ const QuizReviewPage = () => {
     };
 
     useEffect(() => {
-        fetchAttempts();
-        fetchQuizOptions();
-    }, [statusFilter, gradingStatusFilter, quizFilter, dateRange]);
+        if (user) {
+            fetchAttempts();
+            fetchQuizOptions();
+        }
+    }, [user, statusFilter, gradingStatusFilter, quizFilter, dateRange]);
 
     // Debounced search
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (globalFilter !== undefined) {
+            if (globalFilter !== undefined && user) {
                 fetchAttempts();
             }
         }, 500);
         return () => clearTimeout(timer);
-    }, [globalFilter]);
+    }, [globalFilter, user]);
+    useEffect(() => {
+        if (user) {
+            setCurrentUserId(user._id);
+
+            setCurrentUserRole(user.personCategory);
+        }
+    }, [user]);
 
     // Open review dialog
     const openReviewDialog = (attempt: QuizAttemptListItem) => {

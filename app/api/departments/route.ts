@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Department from '@/models/Department';
+import { withActivityLogging } from '@/lib/middleware/activityLogging';
 import Faculty from '@/models/Faculty';
 
 // GET all departments
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST create a new department
-export async function POST(request: NextRequest) {
+const postHandler = async (request: NextRequest) => {
     try {
         await connectDB();
 
@@ -87,4 +88,12 @@ export async function POST(request: NextRequest) {
         console.error('Error creating department:', error);
         return NextResponse.json({ success: false, message: 'Failed to create department', error: error.message }, { status: 500 });
     }
-}
+};
+
+export const POST = withActivityLogging(postHandler, {
+    category: 'crud',
+    actionType: 'create',
+    entityType: 'department',
+    entityIdExtractor: (req, res) => res?.department?._id?.toString(),
+    entityNameExtractor: (req, res) => res?.department?.name
+});

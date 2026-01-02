@@ -21,6 +21,7 @@ import { TabView, TabPanel } from 'primereact/tabview';
 import { Chip } from 'primereact/chip';
 import { FileUpload } from 'primereact/fileupload';
 import LocalDBService from '@/lib/services/localDBService';
+import { getAcademicYears } from '@/lib/utils/utilFunctions';
 
 type ExpenditureCategory =
     | 'salaries_wages'
@@ -107,7 +108,7 @@ export const ExpenditureManagement: React.FC = () => {
 
     const [formData, setFormData] = useState<Partial<ExpenditureData>>({
         expenditureDate: new Date(),
-        academicYear: '2024/2025',
+        academicYear: getAcademicYears[0].value,
         academicTerm: 1,
         currency: 'GHS',
         amount: 0,
@@ -142,7 +143,6 @@ export const ExpenditureManagement: React.FC = () => {
     const toast = useRef<Toast>(null);
     const dt = useRef<DataTable<ExpenditureData[]>>(null);
 
-    const academicYears = ['2025/2026', '2024/2025', '2023/2024'];
     const academicTerms = [
         { label: 'Term 1', value: 1 },
         { label: 'Term 2', value: 2 },
@@ -318,7 +318,7 @@ export const ExpenditureManagement: React.FC = () => {
     const openNew = () => {
         setFormData({
             expenditureDate: new Date(),
-            academicYear: '2024/2025',
+            academicYear: getAcademicYears[0].value,
             academicTerm: 1,
             currency: 'GHS',
             amount: 0,
@@ -754,7 +754,7 @@ export const ExpenditureManagement: React.FC = () => {
                     </div>
                     <div className="col-12 md:col-2">
                         <label className="block text-sm font-medium mb-2">Academic Year</label>
-                        <Dropdown value={filters.academicYear} options={academicYears.map((y) => ({ label: y, value: y }))} onChange={(e) => setFilters({ ...filters, academicYear: e.value })} placeholder="All Years" className="w-full" showClear />
+                        <Dropdown value={filters.academicYear} options={getAcademicYears} onChange={(e) => setFilters({ ...filters, academicYear: e.value })} placeholder="All Years" className="w-full" showClear />
                     </div>
                     <div className="col-12 md:col-2">
                         <label className="block text-sm font-medium mb-2">Date From</label>
@@ -895,7 +895,7 @@ export const ExpenditureManagement: React.FC = () => {
 
                     <div className="col-12 md:col-4">
                         <label className="block font-medium mb-2">Academic Year</label>
-                        <Dropdown value={formData.academicYear} options={academicYears.map((y) => ({ label: y, value: y }))} onChange={(e) => setFormData({ ...formData, academicYear: e.value })} className="w-full" />
+                        <Dropdown value={formData.academicYear} options={getAcademicYears} onChange={(e) => setFormData({ ...formData, academicYear: e.value })} className="w-full" />
                     </div>
 
                     <div className="col-12 md:col-4">

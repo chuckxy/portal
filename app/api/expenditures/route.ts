@@ -4,6 +4,7 @@ import Expenditure from '@/models/Expenditure';
 import Person from '@/models/Person';
 import SchoolSite from '@/models/SchoolSite';
 import School from '@/models/School';
+import { withActivityLogging } from '@/lib/middleware/activityLogging';
 
 // GET /api/expenditures - List all expenditures with filters
 export async function GET(request: NextRequest) {
@@ -126,7 +127,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/expenditures - Create new expenditure
-export async function POST(request: NextRequest) {
+const postHandler = async (request: NextRequest) => {
     try {
         await connectDB();
 
@@ -208,10 +209,19 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ error: 'Failed to create expenditure' }, { status: 500 });
     }
-}
+};
+
+export const POST = withActivityLogging(postHandler, {
+    category: 'sensitive',
+    actionType: 'create',
+    entityType: 'expenditure',
+    entityIdExtractor: (req, res) => res?.expenditure?._id?.toString(),
+    entityNameExtractor: (req, res) => `${res?.expenditure?.category || ''} - ${res?.expenditure?.amount || 0}`,
+    gdprRelevant: false
+});
 
 // PUT /api/expenditures - Update existing expenditure
-export async function PUT(request: NextRequest) {
+const putHandler = async (request: NextRequest) => {
     try {
         await connectDB();
 
@@ -298,10 +308,19 @@ export async function PUT(request: NextRequest) {
 
         return NextResponse.json({ error: 'Failed to update expenditure' }, { status: 500 });
     }
-}
+};
+
+export const PUT = withActivityLogging(putHandler, {
+    category: 'sensitive',
+    actionType: 'update',
+    entityType: 'expenditure',
+    entityIdExtractor: (req, res) => res?.expenditure?._id?.toString(),
+    entityNameExtractor: (req, res) => `${res?.expenditure?.category || ''} - ${res?.expenditure?.amount || 0}`,
+    gdprRelevant: false
+});
 
 // DELETE /api/expenditures - Delete expenditure
-export async function DELETE(request: NextRequest) {
+const deleteHandler = async (request: NextRequest) => {
     try {
         await connectDB();
 
@@ -333,4 +352,15 @@ export async function DELETE(request: NextRequest) {
         console.error('Error deleting expenditure:', error);
         return NextResponse.json({ error: 'Failed to delete expenditure' }, { status: 500 });
     }
-}
+};
+
+export const DELETE = withActivityLogging(deleteHandler, {
+    category: 'sensitive',
+    actionType: 'delete',
+    entityType: 'expenditure',
+    entityIdExtractor: (req) => {
+        const url = new URL(req.url);
+        return url.searchParams.get('id') || undefined;
+    },
+    gdprRelevant: false
+});
