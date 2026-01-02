@@ -1,4 +1,4 @@
-import LibraryItemManagement from '@/components/LibraryItemManagement';
+import LibraryItemManagement from '@/components/features/library/LibraryItemManagement';
 
 const LibraryItem = () => {
     return <LibraryItemManagement />;

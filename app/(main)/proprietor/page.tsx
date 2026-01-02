@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import ProprietorDashboard from '@/components/ProprietorDashboard';
+import ProprietorDashboard from '@/components/features/dashboard/ProprietorDashboard';
 import { Message } from 'primereact/message';
 import { ProgressSpinner } from 'primereact/progressspinner';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import ActivityLogManagement from '@/components/ActivityLogManagement';
+import ActivityLogManagement from '@/components/features/school/ActivityLogManagement';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 /**

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Button } from 'primereact/button';
-import LoginForm from '@/components/login/LoginForm';
+import LoginForm from '@/components/features/auth/login/LoginForm';
 import { Page } from '@/types';
 import './login.css';
 

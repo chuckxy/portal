@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { TabView, TabPanel } from 'primereact/tabview';
-import LMSCourseModuleManagement from '@/components/LMSCourseModuleManagement';
-import LMSChapterManagement from '@/components/LMSChapterManagement';
-import LMSLessonManagement from '@/components/LMSLessonManagement';
+import LMSCourseModuleManagement from '@/components/features/lms/courses/LMSCourseModuleManagement';
+import LMSChapterManagement from '@/components/features/lms/lessons/LMSChapterManagement';
+import LMSLessonManagement from '@/components/features/lms/lessons/LMSLessonManagement';
 
 /**
  * LMS Course Content Management Page

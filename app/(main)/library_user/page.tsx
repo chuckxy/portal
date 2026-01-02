@@ -1,4 +1,4 @@
-import LibraryUserManagement from '@/components/LibraryUserManagement';
+import LibraryUserManagement from '@/components/features/library/LibraryUserManagement';
 
 const LibraryUser = () => {
     return <LibraryUserManagement />;

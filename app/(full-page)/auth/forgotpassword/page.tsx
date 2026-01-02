@@ -6,7 +6,7 @@ import { Button } from 'primereact/button';
 import { useRouter } from 'next/navigation';
 import { Page } from '../../../../types/layout';
 import { classNames } from 'primereact/utils';
-import { LayoutContext } from '../../../../layout/context/layoutcontext';
+import { LayoutContext } from '@/components/layouts/context/layoutcontext';
 
 const ForgotPassword: Page = () => {
     const { layoutConfig } = useContext(LayoutContext);

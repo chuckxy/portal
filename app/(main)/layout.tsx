@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import Layout from '../../layout/layout';
+import Layout from '@/components/layouts/layout';
 
 interface MainLayoutProps {
     children: React.ReactNode;

@@ -1,4 +1,4 @@
-import LMSChapterManagement from '@/components/LMSChapterManagement';
+import LMSChapterManagement from '@/components/features/lms/lessons/LMSChapterManagement';
 
 /**
  * LMS Chapters Page

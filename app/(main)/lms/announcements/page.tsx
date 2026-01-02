@@ -1,6 +1,6 @@
 'use client';
 
-import LMSAnnouncementManagement from '@/components/LMSAnnouncementManagement';
+import LMSAnnouncementManagement from '@/components/features/lms/LMSAnnouncementManagement';
 
 const AnnouncementsPage = () => {
     return <LMSAnnouncementManagement />;

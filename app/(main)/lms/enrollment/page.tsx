@@ -1,4 +1,4 @@
-import LMSEnrollmentManagement from '@/components/LMSEnrollmentManagement';
+import LMSEnrollmentManagement from '@/components/features/lms/LMSEnrollmentManagement';
 
 const Enrollment = () => {
     return <LMSEnrollmentManagement />;

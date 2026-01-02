@@ -17,8 +17,8 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import { Avatar } from 'primereact/avatar';
 import { Divider } from 'primereact/divider';
 
-import { QuizAttemptReview } from '@/components/quiz-review';
-import { ReviewerRole, attemptStatusConfig, gradingStatusConfig } from '@/lib/lms/quiz-review-types';
+import { QuizAttemptReview } from '@/components/features/lms/quiz-review';
+import { ReviewerRole, attemptStatusConfig, gradingStatusConfig } from '@/lib/services/lms/quiz-review-types';
 import { useAuth } from '@/context/AuthContext';
 import { PersonCategory } from '@/models/Person';
 

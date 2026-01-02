@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import SchoolRegistration from '@/components/SchoolRegistration';
+import SchoolRegistration from '@/components/features/school/SchoolRegistration';
 
 const Register = () => {
     return <SchoolRegistration />;

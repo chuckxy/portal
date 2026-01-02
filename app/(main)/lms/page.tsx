@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import LMSStudentDashboard from '@/components/LMSStudentDashboard';
+import LMSStudentDashboard from '@/components/features/lms/LMSStudentDashboard';
 
 /**
  * Main LMS Entry Point

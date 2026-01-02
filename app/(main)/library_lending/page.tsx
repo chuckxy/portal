@@ -1,4 +1,4 @@
-import LibraryLendingManagement from '@/components/LibraryLendingManagement';
+import LibraryLendingManagement from '@/components/features/library/LibraryLendingManagement';
 
 const LibraryLending = () => {
     return <LibraryLendingManagement />;

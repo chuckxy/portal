@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
-import StudentLearningPortal from '@/components/StudentLearningPortal';
+import StudentLearningPortal from '@/components/features/lms/StudentLearningPortal';
 
 // Loading component
 const LoadingState = () => (

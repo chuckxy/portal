@@ -4,7 +4,7 @@ import React, { useContext } from 'react';
 import { Button } from 'primereact/button';
 import type { Page } from '@/types';
 import { classNames } from 'primereact/utils';
-import { LayoutContext } from '../../../../layout/context/layoutcontext';
+import { LayoutContext } from '@/components/layouts/context/layoutcontext';
 import { useRouter } from 'next/navigation';
 
 const AccessDenied: Page = () => {

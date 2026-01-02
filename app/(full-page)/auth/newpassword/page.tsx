@@ -4,7 +4,7 @@ import React, { useContext } from 'react';
 import { Button } from 'primereact/button';
 import { useRouter } from 'next/navigation';
 import { Page } from '../../../../types/layout';
-import { LayoutContext } from '../../../../layout/context/layoutcontext';
+import { LayoutContext } from '@/components/layouts/context/layoutcontext';
 import { classNames } from 'primereact/utils';
 import { InputText } from 'primereact/inputtext';
 

@@ -170,6 +170,7 @@ export interface IActivityLog {
 export type ActivityLogDocument = Document & IActivityLog;
 
 // -------------------- SCHEMA --------------------
+// @ts-ignore
 const ClientInfoSchema = new Schema<IClientInfo>(
     {
         ipAddress: { type: String, trim: true },
@@ -242,7 +243,7 @@ const StateSnapshotSchema = new Schema<IStateSnapshot>(
     },
     { _id: false }
 );
-
+// @ts-ignore
 const ActivityLogSchema = new Schema<IActivityLog>(
     {
         // Timestamp

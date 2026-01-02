@@ -1,4 +1,4 @@
-import FeeDeterminantManagement from '@/components/FeeDeterminantManagement';
+import FeeDeterminantManagement from '@/components/features/finance/fees/FeeDeterminantManagement';
 
 const Determinants = () => {
     return <FeeDeterminantManagement />;

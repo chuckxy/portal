@@ -1,4 +1,4 @@
-import FinancialControllerDashboard from '@/components/FinancialControllerDashboard';
+import FinancialControllerDashboard from '@/components/features/finance/FinancialControllerDashboard';
 
 const Finance = () => {
     return <FinancialControllerDashboard />;

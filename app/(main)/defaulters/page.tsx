@@ -1,4 +1,4 @@
-import StudentDebtorsManagement from '@/components/StudentDebtorsManagement';
+import StudentDebtorsManagement from '@/components/features/finance/StudentDebtorsManagement';
 
 const Defaulters = () => {
     return <StudentDebtorsManagement />;

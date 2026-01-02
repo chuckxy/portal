@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import ExamScoreEntryForm from '@/components/ExamScoreEntryForm';
+import ExamScoreEntryForm from '@/components/features/scheduling/ExamScoreEntryForm';
 import { Card } from 'primereact/card';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';

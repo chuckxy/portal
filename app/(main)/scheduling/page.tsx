@@ -1,4 +1,4 @@
-import TimetableManagement from '@/components/TimetableManagement';
+import TimetableManagement from '@/components/features/scheduling/TimetableManagement';
 
 const Scheduling = () => {
     return <TimetableManagement />;

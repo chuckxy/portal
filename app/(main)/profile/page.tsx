@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import ProfileEditForm from '@/components/ProfileEditForm';
+import ProfileEditForm from '@/components/features/persons/ProfileEditForm';
 import { Message } from 'primereact/message';
 import { ProgressSpinner } from 'primereact/progressspinner';
 

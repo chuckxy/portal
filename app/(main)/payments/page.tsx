@@ -1,6 +1,6 @@
 'use client';
 
-import { FeesPaymentList } from '@/components/FeesPaymentList';
+import { FeesPaymentList } from '@/components/features/finance/fees/FeesPaymentList';
 
 const Payments = () => {
     return (

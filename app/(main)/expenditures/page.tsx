@@ -1,4 +1,4 @@
-import ExpenditureManagement from '@/components/ExpenditureManagement';
+import ExpenditureManagement from '@/components/features/finance/expenditures/ExpenditureManagement';
 
 const Expenditures = () => {
     return <ExpenditureManagement />;

@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { Card } from 'primereact/card';
-import PersonManagement from '@/components/PersonManagement';
-import PersonStatsWidget from '@/components/PersonStatsWidget';
+import PersonManagement from '@/components/features/persons/PersonManagement';
+import PersonStatsWidget from '@/components/features/persons/PersonStatsWidget';
 
 const Persons = () => {
     const [activeIndex, setActiveIndex] = useState(0);

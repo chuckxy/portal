@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import StudentDashboard from '@/components/StudentDashboard';
+import StudentDashboard from '@/components/features/students/StudentDashboard';
 import { Message } from 'primereact/message';
 import { ProgressSpinner } from 'primereact/progressspinner';
 

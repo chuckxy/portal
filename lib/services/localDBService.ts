@@ -1,6 +1,6 @@
 
 import { TLocalStore, TLocalStoreRecordType } from '@/types/general';
-import { localDB } from '@/lib/helpers/localDB';
+import { localDB } from '@/lib/services/localDB';
 
 class LocalDBService {
     static async setLocalDataItem(localData: TLocalStoreRecordType, localDataProp: keyof TLocalStore) {

@@ -1,4 +1,4 @@
-import LMSLessonManagement from '@/components/LMSLessonManagement';
+import LMSLessonManagement from '@/components/features/lms/lessons/LMSLessonManagement';
 
 /**
  * LMS Lessons Page

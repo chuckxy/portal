@@ -1,4 +1,4 @@
-import ScholarshipManagement from '@/components/ScholarshipManagement';
+import ScholarshipManagement from '@/components/features/finance/scholarships/ScholarshipManagement';
 
 const ScholarshipBeneficiary = () => {
     return <ScholarshipManagement />;

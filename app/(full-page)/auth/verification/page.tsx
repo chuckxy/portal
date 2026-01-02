@@ -5,7 +5,7 @@ import { Button } from 'primereact/button';
 import { useRouter } from 'next/navigation';
 import type { Page } from '@/types';
 import { InputNumber } from 'primereact/inputnumber';
-import { LayoutContext } from '../../../../layout/context/layoutcontext';
+import { LayoutContext } from '@/components/layouts/context/layoutcontext';
 import { classNames } from 'primereact/utils';
 
 const Verification: Page = () => {

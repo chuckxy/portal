@@ -9,7 +9,7 @@ import { DataView } from 'primereact/dataview';
 import { Tag } from 'primereact/tag';
 import { Badge } from 'primereact/badge';
 import { useAuth } from '@/context/AuthContext';
-import { SecureQuizInterface, QuizResults, Violation } from '@/components/quiz';
+import { SecureQuizInterface, QuizResults, Violation } from '@/components/features/lms/quiz';
 
 // Types
 interface Quiz {

@@ -1,6 +1,6 @@
 'use client';
 
-import LMSQuizManagement from '@/components/LMSQuizManagement';
+import LMSQuizManagement from '@/components/features/lms/quizzes/LMSQuizManagement';
 
 const QuizzesPage = () => {
     return <LMSQuizManagement />;

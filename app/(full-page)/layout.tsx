@@ -1,4 +1,4 @@
-import AppConfig from '../../layout/AppConfig';
+import AppConfig from '@/components/layouts/AppConfig';
 import React from 'react';
 
 interface FullPageLayoutProps {

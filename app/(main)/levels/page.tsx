@@ -1,4 +1,4 @@
-import ClassManagement from '@/components/ClassManagement';
+import ClassManagement from '@/components/features/scheduling/ClassManagement';
 
 const Levels = () => {
     return <ClassManagement />;

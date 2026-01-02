@@ -1,4 +1,4 @@
-import ClassExamScoreEntry from '@/components/ClassExamScoreEntry';
+import ClassExamScoreEntry from '@/components/features/scheduling/ClassExamScoreEntry';
 
 const ClassScoreEntry = () => {
     return <ClassExamScoreEntry />;

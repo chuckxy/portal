@@ -1,4 +1,4 @@
-import DailyFeeCollectionManagement from '@/components/DailyFeeCollectionManagement';
+import DailyFeeCollectionManagement from '@/components/features/finance/collections/DailyFeeCollectionManagement';
 
 const Canteen = () => {
     return <DailyFeeCollectionManagement />;
