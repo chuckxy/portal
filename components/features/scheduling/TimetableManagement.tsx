@@ -25,6 +25,7 @@ import { FileUpload } from 'primereact/fileupload';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { getAcademicYears } from '@/lib/utils/utilFunctions';
+import TimetablePrintDialog from '@/components/print/TimetablePrintDialog';
 
 type WeekDay = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 type ActivityType = 'break' | 'lunch' | 'assembly' | 'other';
@@ -149,6 +150,8 @@ export default function TimetableManagement() {
     const [conflictCheck, setConflictCheck] = useState<any[]>([]);
     const [showSidebar, setShowSidebar] = useState(false);
     const [uploadDialogVisible, setUploadDialogVisible] = useState(false);
+    const [printDialogVisible, setPrintDialogVisible] = useState(false);
+    const [timetableToPrint, setTimetableToPrint] = useState<TimetableData | null>(null);
 
     // Dropdown options
     const [schools, setSchools] = useState<any[]>([]);
@@ -166,10 +169,12 @@ export default function TimetableManagement() {
     ];
 
     useEffect(() => {
-        loadTimetables();
-        loadDropdownData();
-        setSetupData({ ...setupData, school: user?.school });
-    }, [user]);
+        if (user?.school) {
+            loadTimetables();
+            loadDropdownData();
+            setSetupData({ ...setupData, school: user?.school });
+        }
+    }, [user?.school, user?.schoolSite]);
 
     useEffect(() => {
         if (setupData.site) {
@@ -257,7 +262,17 @@ export default function TimetableManagement() {
     const loadTimetables = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/timetables');
+
+            // Build query params with school and site filters
+            const params = new URLSearchParams();
+            if (user?.school) {
+                params.append('school', user.school);
+            }
+            if (user?.schoolSite) {
+                params.append('site', user.schoolSite);
+            }
+
+            const response = await fetch(`/api/timetables?${params.toString()}`);
             const data = await response.json();
             if (data.success) {
                 setTimetables(data.data || []);
@@ -272,17 +287,12 @@ export default function TimetableManagement() {
 
     const loadDropdownData = async () => {
         try {
-            // Load schools
-            // const schoolsRes = await fetch('/api/schools');
-            // const schoolsData = await schoolsRes.json();
-            // setSchools(schoolsData.data || []);
+            if (user == null) return;
 
             // Load sites
-            // const sitesRes = await fetch('/api/sites');
-
-            if (user == null) return;
             const response = await fetch(`/api/sites?school=${user.school}`);
             const sitesData = await response.json();
+            console.log('Loaded sites:', sitesData);
             setSites(sitesData.sites || []);
 
             // Set default academic year
@@ -298,7 +308,7 @@ export default function TimetableManagement() {
 
     const loadClasses = async (siteId: string) => {
         try {
-            const response = await fetch(`/api/classes?siteId=${siteId}`);
+            const response = await fetch(`/api/classes?site=${siteId}`);
             const data = await response.json();
             setClasses(data.classes || []);
         } catch (error) {
@@ -308,18 +318,45 @@ export default function TimetableManagement() {
 
     const loadSubjects = async () => {
         try {
-            const response = await fetch('/api/subjects?site=' + (setupData.site?._id || setupData.site));
-            const data = await response.json();
+            // If we have a selected class, fetch its subjects
+            if (setupData.class) {
+                const classId = setupData.class._id || setupData.class;
+                const response = await fetch(`/api/classes/${classId}`);
+                const data = await response.json();
 
-            setSubjects(data.subjects || []);
+                if (data.success && data.class && data.class.subjects) {
+                    // The subjects are already populated by the API
+                    setSubjects(data.class.subjects || []);
+                } else {
+                    setSubjects([]);
+                }
+            } else {
+                // Fallback to loading all subjects for the site
+                const response = await fetch('/api/subjects?site=' + (setupData.site?._id || setupData.site));
+                const data = await response.json();
+                setSubjects(data.subjects || []);
+            }
         } catch (error) {
             console.error('Error loading subjects:', error);
+            setSubjects([]);
         }
     };
 
     const loadTeachers = async () => {
         try {
-            const response = await fetch('/api/persons?category=teacher');
+            // Build query params with school and site filters
+            const params = new URLSearchParams();
+            params.append('category', 'teacher');
+
+            if (user?.school) {
+                params.append('school', user.school);
+            }
+
+            if (user?.schoolSite) {
+                params.append('schoolSite', user.schoolSite);
+            }
+
+            const response = await fetch(`/api/persons?${params.toString()}`);
             const data = await response.json();
 
             setTeachers(data.persons || []);
@@ -1417,62 +1454,78 @@ export default function TimetableManagement() {
         </Dialog>
     );
 
-    const renderListView = () => (
-        <div>
-            <div className="flex justify-content-between align-items-center mb-4">
-                <h2>Timetable Management</h2>
-                <Button
-                    label="Create New Timetable"
-                    icon="pi pi-plus"
-                    onClick={() => {
-                        setViewMode('create');
-                        setActiveStep(0);
-                        setSchedule([]);
-                        setRecessActivities([]);
-                    }}
-                />
-            </div>
+    const renderListView = () => {
+        return (
+            <div>
+                <div className="flex justify-content-between align-items-center mb-4">
+                    <h2>Timetable Management</h2>
+                    <Button
+                        label="Create New Timetable"
+                        icon="pi pi-plus"
+                        onClick={() => {
+                            setViewMode('create');
+                            setActiveStep(0);
+                            setSchedule([]);
+                            setRecessActivities([]);
+                        }}
+                    />
+                </div>
 
-            <DataTable value={timetables} loading={loading} paginator rows={10} emptyMessage="No timetables found. Create your first timetable to get started.">
-                <Column field="class.className" header="Class" sortable />
-                <Column field="site.siteName" header="Site" sortable />
-                <Column field="academicYear" header="Academic Period" sortable body={(row) => `${row.academicYear} - Term ${row.academicTerm}`} />
-                <Column field="isActive" header="Status" body={(row) => <Tag value={row.isActive ? 'Active' : 'Draft'} severity={row.isActive ? 'success' : 'warning'} />} />
-                <Column field="version" header="Version" sortable />
-                <Column field="effectiveFrom" header="Effective From" body={(row) => new Date(row.effectiveFrom).toLocaleDateString()} sortable />
-                <Column
-                    header="Actions"
-                    body={(row) => (
-                        <div className="flex gap-2">
-                            <Button
-                                icon="pi pi-eye"
-                                className="p-button-text"
-                                onClick={() => {
-                                    setSelectedTimetable(row);
-                                    setViewMode('view');
-                                }}
-                            />
-                            <Button
-                                icon="pi pi-pencil"
-                                className="p-button-text"
-                                onClick={() => {
-                                    setSelectedTimetable(row);
-                                    setViewMode('edit');
-                                }}
-                            />
-                            <Button
-                                icon="pi pi-trash"
-                                className="p-button-text p-button-danger"
-                                onClick={() => handleDelete(row._id, row.isActive)}
-                                tooltip={row.isActive ? 'Cannot delete active timetable' : 'Delete timetable'}
-                                tooltipOptions={{ position: 'left' }}
-                            />
-                        </div>
-                    )}
-                />
-            </DataTable>
-        </div>
-    );
+                <DataTable value={timetables} loading={loading} paginator rows={10} emptyMessage="No timetables found. Create your first timetable to get started.">
+                    <Column field="class.className" header="Class" sortable />
+                    <Column field="site.siteName" header="Site" sortable />
+                    <Column field="academicYear" header="Academic Period" sortable body={(row) => `${row.academicYear} - Term ${row.academicTerm}`} />
+                    <Column field="isActive" header="Status" body={(row) => <Tag value={row.isActive ? 'Active' : 'Draft'} severity={row.isActive ? 'success' : 'warning'} />} />
+                    <Column field="version" header="Version" sortable />
+                    <Column field="effectiveFrom" header="Effective From" body={(row) => new Date(row.effectiveFrom).toLocaleDateString()} sortable />
+                    <Column
+                        header="Actions"
+                        body={(row) => (
+                            <div className="flex gap-2">
+                                <Button
+                                    icon="pi pi-eye"
+                                    className="p-button-text"
+                                    onClick={() => {
+                                        setSelectedTimetable(row);
+                                        setViewMode('view');
+                                    }}
+                                    tooltip="View"
+                                    tooltipOptions={{ position: 'top' }}
+                                />
+                                <Button
+                                    icon="pi pi-print"
+                                    className="p-button-text p-button-success"
+                                    onClick={() => {
+                                        setTimetableToPrint(row);
+                                        setPrintDialogVisible(true);
+                                    }}
+                                    tooltip="Print"
+                                    tooltipOptions={{ position: 'top' }}
+                                />
+                                <Button
+                                    icon="pi pi-pencil"
+                                    className="p-button-text"
+                                    onClick={() => {
+                                        setSelectedTimetable(row);
+                                        setViewMode('edit');
+                                    }}
+                                    tooltip="Edit"
+                                    tooltipOptions={{ position: 'top' }}
+                                />
+                                <Button
+                                    icon="pi pi-trash"
+                                    className="p-button-text p-button-danger"
+                                    onClick={() => handleDelete(row._id, row.isActive)}
+                                    tooltip={row.isActive ? 'Cannot delete active timetable' : 'Delete timetable'}
+                                    tooltipOptions={{ position: 'left' }}
+                                />
+                            </div>
+                        )}
+                    />
+                </DataTable>
+            </div>
+        );
+    };
 
     if (viewMode === 'list') {
         return (
@@ -1480,6 +1533,16 @@ export default function TimetableManagement() {
                 <Toast ref={toast} />
                 <ConfirmDialog />
                 {renderListView()}
+
+                {/* Print Dialog */}
+                <TimetablePrintDialog
+                    visible={printDialogVisible}
+                    onHide={() => {
+                        setPrintDialogVisible(false);
+                        setTimetableToPrint(null);
+                    }}
+                    timetable={timetableToPrint}
+                />
             </>
         );
     }
@@ -1550,6 +1613,16 @@ export default function TimetableManagement() {
                     </div>
                 </div>
             </Dialog>
+
+            {/* Print Dialog */}
+            <TimetablePrintDialog
+                visible={printDialogVisible}
+                onHide={() => {
+                    setPrintDialogVisible(false);
+                    setTimetableToPrint(null);
+                }}
+                timetable={timetableToPrint}
+            />
         </>
     );
 }

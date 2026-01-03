@@ -40,7 +40,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         const { id } = await params;
 
         const body = await request.json();
-        const { site, department, division, sequence, className, academicYear, prefect, classLimit, formMaster, subjects, isActive } = body;
+        const { site, department, division, sequence, className, prefect, classLimit, formMaster, subjects, isActive } = body;
 
         // Validate required fields
         if (!site || !division || !sequence) {
@@ -62,12 +62,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             site,
             sequence,
             division: division.toUpperCase(),
-            academicYear,
             _id: { $ne: id }
         });
 
         if (duplicateClass) {
-            return NextResponse.json({ success: false, message: 'A class with this combination already exists for the selected academic year' }, { status: 409 });
+            return NextResponse.json({ success: false, message: 'A class with this site, level, and division already exists' }, { status: 409 });
         }
 
         // Extract IDs from potentially populated objects
@@ -83,7 +82,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
                 division: division.toUpperCase(),
                 sequence,
                 className: className || `Form ${sequence}${division.toUpperCase()}`,
-                academicYear: academicYear || undefined,
                 prefect: prefect || undefined,
                 classLimit: classLimit || 0,
                 formMaster: formMaster || undefined,

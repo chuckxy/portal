@@ -47,6 +47,8 @@ export interface StudentBalance {
     totalFeesForPeriod: number;
     totalPaid: number;
     previousArrears: number;
+    /** Balance Brought Forward - Opening balance from before computerization */
+    balanceBroughtForward: number;
     totalOutstanding: number;
     previousPayments: PreviousPayment[];
     currency: string;

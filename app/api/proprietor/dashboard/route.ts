@@ -229,6 +229,7 @@ export async function GET(request: NextRequest) {
             .lean();
 
         let outstandingReceivables = 0;
+        let totalBalanceBroughtForward = 0; // Aggregate B/F across all students
         let criticalDebtors = 0;
         let expectedFees = 0;
         let collectedFees = collectedThisTerm;
@@ -245,6 +246,10 @@ export async function GET(request: NextRequest) {
             }).lean();
 
             if (feeConfig) {
+                // Get Balance Brought Forward (opening balance from before computerization)
+                const balanceBroughtForward = student.studentInfo?.balanceBroughtForward || 0;
+                totalBalanceBroughtForward += balanceBroughtForward;
+
                 expectedFees += feeConfig.totalAmount || 0;
 
                 // Get only confirmed payments for this student
@@ -255,11 +260,16 @@ export async function GET(request: NextRequest) {
                 }).lean();
 
                 const totalPaid = payments.reduce((sum, payment) => sum + (payment.amountPaid || 0), 0);
-                const outstanding = Math.max(0, feeConfig.totalAmount - totalPaid);
+
+                // Calculate outstanding including Balance Brought Forward
+                // Formula: totalDebt = balanceBroughtForward + generatedCharges - payments
+                const currentPeriodOutstanding = Math.max(0, feeConfig.totalAmount - totalPaid);
+                const outstanding = currentPeriodOutstanding + balanceBroughtForward;
                 outstandingReceivables += outstanding;
 
-                // Check if critical debtor (<25% paid)
-                const percentagePaid = feeConfig.totalAmount > 0 ? (totalPaid / feeConfig.totalAmount) * 100 : 0;
+                // Check if critical debtor (<25% paid) - based on total required including B/F
+                const totalRequired = feeConfig.totalAmount + balanceBroughtForward;
+                const percentagePaid = totalRequired > 0 ? (totalPaid / totalRequired) * 100 : 0;
                 if (percentagePaid < 25 && outstanding > 0) {
                     criticalDebtors++;
                 }
@@ -351,9 +361,10 @@ export async function GET(request: NextRequest) {
 
         // ============= ACADEMIC DATA =============
 
-        // Total classes
+        // Total classes (only for this proprietor's school sites)
         const totalClasses = await SiteClass.countDocuments({
-            isActive: true
+            isActive: true,
+            site: { $in: schoolSiteIds }
         });
 
         // Total subjects
@@ -361,9 +372,9 @@ export async function GET(request: NextRequest) {
             school: schoolId
         });
 
-        // Average class size
+        // Average class size (only for this proprietor's school sites)
         const classSizes = await SiteClass.aggregate([
-            { $match: { isActive: true } },
+            { $match: { isActive: true, site: { $in: schoolSiteIds } } },
             {
                 $lookup: {
                     from: 'people',
@@ -392,17 +403,19 @@ export async function GET(request: NextRequest) {
                 }
             }
         ]);
+
         const averageClassSize = classSizes.length > 0 ? classSizes[0].avgSize : 0;
 
         // Teacher:Student ratio
         const teacherStudentRatio = totalTeachers > 0 ? `1:${Math.round(totalStudents / totalTeachers)}` : '0:0';
 
-        // Average performance (from exam scores)
+        // Average performance (from exam scores for this school's students)
         const performanceResult = await ExamScore.aggregate([
             {
                 $match: {
                     isPublished: true,
-                    academicYear: currentAcademicYear
+                    academicYear: currentAcademicYear,
+                    school: new mongoose.Types.ObjectId(schoolId as string)
                 }
             },
             {
@@ -433,7 +446,7 @@ export async function GET(request: NextRequest) {
                 });
 
                 const siteClasses = await SiteClass.countDocuments({
-                    schoolSite: site._id,
+                    site: site._id,
                     isActive: true
                 });
 

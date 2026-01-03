@@ -92,6 +92,11 @@ interface PersonFormData {
         defaultAcademicTerm?: number;
         defaultAcademicYear?: string;
         subjects?: string[];
+        /**
+         * Balance Brought Forward (B/F) - Opening outstanding balance at time of system onboarding.
+         * Represents pre-existing financial obligations before computerization.
+         */
+        balanceBroughtForward?: number;
     };
 
     // Employee Information
@@ -252,6 +257,24 @@ const AddPersonForm: React.FC<AddPersonFormProps> = ({ onSuccess, onCancel, edit
 
     useEffect(() => {
         fetchDropdownData();
+
+        // Set current academic year and term if not in edit mode
+        if (!editData && formData.personCategory === 'student') {
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            const academicYear = currentMonth >= 8 ? `${currentYear}/${currentYear + 1}` : `${currentYear - 1}/${currentYear}`;
+            const academicTerm = currentMonth <= 3 ? 1 : currentMonth <= 7 ? 2 : 3;
+
+            setFormData((prev) => ({
+                ...prev,
+                studentInfo: {
+                    ...prev.studentInfo!,
+                    defaultAcademicYear: academicYear,
+                    defaultAcademicTerm: academicTerm
+                }
+            }));
+        }
     }, [user]);
 
     useEffect(() => {
@@ -281,7 +304,8 @@ const AddPersonForm: React.FC<AddPersonFormProps> = ({ onSuccess, onCancel, edit
                           department: typeof editData.studentInfo.department === 'object' && editData.studentInfo.department?._id ? editData.studentInfo.department._id : editData.studentInfo.department,
                           currentClass: typeof editData.studentInfo.currentClass === 'object' && editData.studentInfo.currentClass?._id ? editData.studentInfo.currentClass._id : editData.studentInfo.currentClass,
                           guardian: typeof editData.studentInfo.guardian === 'object' && editData.studentInfo.guardian?._id ? editData.studentInfo.guardian._id : editData.studentInfo.guardian,
-                          subjects: editData.studentInfo.subjects?.map((s: any) => (typeof s === 'object' && s?._id ? s._id : s)) || []
+                          subjects: editData.studentInfo.subjects?.map((s: any) => (typeof s === 'object' && s?._id ? s._id : s)) || [],
+                          balanceBroughtForward: editData.studentInfo.balanceBroughtForward || 0
                       }
                     : undefined,
                 employeeInfo: editData.employeeInfo
@@ -917,6 +941,38 @@ const AddPersonForm: React.FC<AddPersonFormProps> = ({ onSuccess, onCancel, edit
                             </div>
 
                             <div className="col-12 md:col-6">
+                                <label htmlFor="academicYear" className="font-semibold text-900 mb-2 block">
+                                    Academic Year
+                                </label>
+                                <InputText id="academicYear" value={formData.studentInfo?.defaultAcademicYear || ''} className="w-full" disabled tooltip="Current academic year (automatically set)" tooltipOptions={{ position: 'top' }} />
+                                <small className="text-500">Current academic year</small>
+                            </div>
+
+                            <div className="col-12 md:col-6">
+                                <label htmlFor="academicTerm" className="font-semibold text-900 mb-2 block">
+                                    Academic Term
+                                </label>
+                                <Dropdown
+                                    id="academicTerm"
+                                    value={formData.studentInfo?.defaultAcademicTerm || 1}
+                                    options={[
+                                        { label: 'Term 1', value: 1 },
+                                        { label: 'Term 2', value: 2 },
+                                        { label: 'Term 3', value: 3 }
+                                    ]}
+                                    onChange={(e) =>
+                                        setFormData({
+                                            ...formData,
+                                            studentInfo: { ...formData.studentInfo!, defaultAcademicTerm: e.value }
+                                        })
+                                    }
+                                    placeholder="Select term"
+                                    className="w-full"
+                                />
+                                <small className="text-500">Current academic term</small>
+                            </div>
+
+                            <div className="col-12 md:col-6">
                                 <label htmlFor="guardian" className="font-semibold text-900 mb-2 block">
                                     Guardian
                                 </label>
@@ -956,6 +1012,43 @@ const AddPersonForm: React.FC<AddPersonFormProps> = ({ onSuccess, onCancel, edit
                                     display="chip"
                                     className="w-full"
                                 />
+                            </div>
+
+                            {/* Balance Brought Forward - Financial Opening Balance */}
+                            <div className="col-12 mt-3">
+                                <div className="bg-yellow-50 border-round p-3 mb-3">
+                                    <h5 className="text-yellow-900 mt-0 mb-1 flex align-items-center gap-2">
+                                        <i className="pi pi-wallet"></i>
+                                        Financial Opening Balance
+                                    </h5>
+                                    <p className="text-yellow-700 text-xs m-0">Use this field to record any outstanding balance from before system onboarding. This amount will be included in all financial calculations and reports.</p>
+                                </div>
+                            </div>
+                            <div className="col-12 md:col-6">
+                                <label htmlFor="balanceBroughtForward" className="font-semibold text-900 mb-2 block">
+                                    Balance Brought Forward (B/F)
+                                </label>
+                                <InputNumber
+                                    id="balanceBroughtForward"
+                                    value={formData.studentInfo?.balanceBroughtForward || 0}
+                                    onValueChange={(e) =>
+                                        setFormData({
+                                            ...formData,
+                                            studentInfo: { ...formData.studentInfo!, balanceBroughtForward: e.value || 0 }
+                                        })
+                                    }
+                                    mode="currency"
+                                    currency="GHS"
+                                    locale="en-GH"
+                                    minFractionDigits={2}
+                                    min={0}
+                                    className="w-full"
+                                    placeholder="0.00"
+                                />
+                                <small className="text-500 block mt-1">
+                                    <i className="pi pi-info-circle mr-1"></i>
+                                    Enter any pre-existing debt from before computerization. Default: 0.00
+                                </small>
                             </div>
                         </div>
                     </Panel>

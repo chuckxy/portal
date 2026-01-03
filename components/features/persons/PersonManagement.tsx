@@ -19,6 +19,7 @@ import { Chip } from 'primereact/chip';
 import { Menu } from 'primereact/menu';
 import { useAuth } from '@/context/AuthContext';
 import AddPersonForm from './AddPersonForm';
+import { FilterMatchMode } from 'primereact/api';
 
 interface Person {
     _id: string;
@@ -58,8 +59,12 @@ const PersonManagement: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [dialogVisible, setDialogVisible] = useState(false);
     const [bulkUploadVisible, setBulkUploadVisible] = useState(false);
+    const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
-    const [globalFilter, setGlobalFilter] = useState('');
+    const [globalFilter, setGlobalFilter] = useState({
+        global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        name: { value: null, matchMode: FilterMatchMode.STARTS_WITH }
+    });
     const [categoryFilter, setCategoryFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
 
@@ -69,6 +74,8 @@ const PersonManagement: React.FC = () => {
     const [uploadClass, setUploadClass] = useState<any>(null);
     const [uploadFaculty, setUploadFaculty] = useState<any>(null);
     const [uploadDepartment, setUploadDepartment] = useState<any>(null);
+    const [uploadAcademicYear, setUploadAcademicYear] = useState<string>('');
+    const [uploadAcademicTerm, setUploadAcademicTerm] = useState<number>(1);
     const [classes, setClasses] = useState<any[]>([]);
     const [faculties, setFaculties] = useState<any[]>([]);
     const [departments, setDepartments] = useState<any[]>([]);
@@ -95,6 +102,12 @@ const PersonManagement: React.FC = () => {
 
     useEffect(() => {
         fetchPersons();
+        // Calculate current academic year
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        const academicYear = currentMonth >= 8 ? `${currentYear}/${currentYear + 1}` : `${currentYear - 1}/${currentYear}`;
+        setUploadAcademicYear(academicYear);
     }, [user, categoryFilter, statusFilter]);
 
     const fetchPersons = async () => {
@@ -174,12 +187,21 @@ const PersonManagement: React.FC = () => {
 
     // Open bulk upload dialog and fetch configuration data
     const openBulkUpload = () => {
+        // Calculate current academic year and term
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        const academicYear = currentMonth >= 8 ? `${currentYear}/${currentYear + 1}` : `${currentYear - 1}/${currentYear}`;
+        const academicTerm = currentMonth <= 3 ? 1 : currentMonth <= 7 ? 2 : 3;
+
         // Reset all configuration state
         setUploadStep('config');
         setUploadPersonCategory('');
         setUploadClass(null);
         setUploadFaculty(null);
         setUploadDepartment(null);
+        setUploadAcademicYear(academicYear);
+        setUploadAcademicTerm(academicTerm);
         setFilteredDepartments([]);
         setFilteredClasses([]);
 
@@ -198,6 +220,8 @@ const PersonManagement: React.FC = () => {
         setUploadClass(null);
         setUploadFaculty(null);
         setUploadDepartment(null);
+        setUploadAcademicYear('');
+        setUploadAcademicTerm(1);
         setFilteredDepartments([]);
         setFilteredClasses([]);
     };
@@ -316,6 +340,7 @@ const PersonManagement: React.FC = () => {
         const file = event.files[0];
         if (!file) return;
 
+        setBulkUploadLoading(true);
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
@@ -331,15 +356,14 @@ const PersonManagement: React.FC = () => {
                         if (value) {
                             // Map CSV headers to person fields
                             switch (header.toLowerCase()) {
-                                case 'firstname':
                                 case 'first name':
                                     person.firstName = value;
                                     break;
-                                case 'middlename':
+
                                 case 'middle name':
                                     person.middleName = value;
                                     break;
-                                case 'lastname':
+
                                 case 'last name':
                                     person.lastName = value;
                                     break;
@@ -354,20 +378,25 @@ const PersonManagement: React.FC = () => {
                                     person.contact.email = value;
                                     break;
                                 case 'phone':
-                                case 'mobile':
                                     if (!person.contact) person.contact = {};
                                     person.contact.mobilePhone = value;
                                     break;
                                 case 'category':
-                                case 'personcategory':
                                     person.personCategory = value.toLowerCase();
                                     break;
                                 case 'gender':
                                     person.gender = value.toLowerCase();
                                     break;
-                                case 'dateofbirth':
-                                case 'dob':
+                                case 'date of birth':
                                     person.dateOfBirth = new Date(value);
+                                    break;
+                                // Balance Brought Forward for students (pre-existing debt)
+                                case 'opening balance':
+                                    const balanceValue = parseFloat(value);
+                                    if (!isNaN(balanceValue) && balanceValue >= 0) {
+                                        if (!person.studentInfo) person.studentInfo = {};
+                                        person.studentInfo.balanceBroughtForward = balanceValue;
+                                    }
                                     break;
                             }
                         }
@@ -388,7 +417,10 @@ const PersonManagement: React.FC = () => {
                     uploadData.defaultClass = uploadClass?._id;
                     uploadData.defaultFaculty = uploadFaculty?._id;
                     uploadData.defaultDepartment = uploadDepartment?._id;
+                    uploadData.defaultAcademicYear = uploadAcademicYear;
+                    uploadData.defaultAcademicTerm = uploadAcademicTerm;
                 }
+                console.log('Upload Data:', uploadData);
 
                 const response = await fetch('/api/persons/bulk-upload', {
                     method: 'POST',
@@ -399,6 +431,7 @@ const PersonManagement: React.FC = () => {
                 if (response.ok) {
                     const data = await response.json();
                     showToast('success', 'Success', data.message);
+                    setBulkUploadLoading(false);
                     closeBulkUpload();
                     fetchPersons();
 
@@ -409,9 +442,11 @@ const PersonManagement: React.FC = () => {
                 } else {
                     const error = await response.json();
                     showToast('error', 'Error', error.message || 'Bulk upload failed');
+                    setBulkUploadLoading(false);
                 }
             } catch (error) {
                 showToast('error', 'Error', 'Failed to process CSV file');
+                setBulkUploadLoading(false);
             }
         };
         reader.readAsText(file);
@@ -498,7 +533,7 @@ const PersonManagement: React.FC = () => {
                     )}
                     {rowData.studentInfo.currentClass && (
                         <div>
-                            <strong>Class:</strong> {rowData.studentInfo.currentClass.className || rowData.studentInfo.currentClass}
+                            <strong>Class:</strong> {typeof rowData.studentInfo.currentClass === 'object' && rowData.studentInfo.currentClass?.className ? rowData.studentInfo.currentClass.className : rowData.studentInfo.currentClass}
                         </div>
                     )}
                 </div>
@@ -556,7 +591,7 @@ const PersonManagement: React.FC = () => {
             <div className="flex gap-2">
                 <span className="p-input-icon-left">
                     <i className="pi pi-search" />
-                    <InputText value={globalFilter} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Search persons..." className="w-full" />
+                    <InputText value={globalFilter.global.value} onChange={(e) => setGlobalFilter({ ...globalFilter, global: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS } })} placeholder="Search persons..." className="w-full" />
                 </span>
                 <Dropdown value={categoryFilter} options={categoryOptions} onChange={(e) => setCategoryFilter(e.value)} placeholder="Filter by Category" className="w-full md:w-14rem" />
                 <Dropdown value={statusFilter} options={statusOptions} onChange={(e) => setStatusFilter(e.value)} placeholder="Filter by Status" className="w-full md:w-12rem" />
@@ -579,7 +614,8 @@ const PersonManagement: React.FC = () => {
                 value={persons}
                 loading={loading}
                 header={header}
-                globalFilter={globalFilter}
+                filters={globalFilter}
+                globalFilterFields={['firstName', 'lastName']}
                 paginator
                 rows={10}
                 rowsPerPageOptions={[5, 10, 25, 50]}
@@ -604,6 +640,15 @@ const PersonManagement: React.FC = () => {
 
             {/* Bulk Upload Dialog */}
             <Dialog header="Bulk Upload Persons" visible={bulkUploadVisible} style={{ width: '700px' }} onHide={closeBulkUpload} modal>
+                {bulkUploadLoading && (
+                    <div className="absolute top-0 left-0 w-full h-full flex align-items-center justify-content-center" style={{ background: 'rgba(255, 255, 255, 0.9)', zIndex: 9999 }}>
+                        <div className="text-center">
+                            <i className="pi pi-spin pi-spinner" style={{ fontSize: '3rem', color: 'var(--primary-color)' }}></i>
+                            <div className="mt-3 text-xl font-semibold text-primary">Uploading persons...</div>
+                            <div className="mt-2 text-600">Please wait while we process your file</div>
+                        </div>
+                    </div>
+                )}
                 <div className="grid">
                     {/* Configuration Section */}
                     <div className="col-12">
@@ -673,6 +718,33 @@ const PersonManagement: React.FC = () => {
                                                 filter
                                                 disabled={!uploadDepartment}
                                             />
+                                        </div>
+
+                                        <div className="col-12 md:col-6">
+                                            <label htmlFor="uploadAcademicYear" className="block mb-2 font-semibold">
+                                                Academic Year
+                                            </label>
+                                            <InputText id="uploadAcademicYear" value={uploadAcademicYear} className="w-full" disabled tooltip="Current academic year (automatically set)" tooltipOptions={{ position: 'top' }} />
+                                            <small className="text-500">Automatically set to current academic year</small>
+                                        </div>
+
+                                        <div className="col-12 md:col-6">
+                                            <label htmlFor="uploadAcademicTerm" className="block mb-2 font-semibold">
+                                                Academic Term <span className="text-red-500">*</span>
+                                            </label>
+                                            <Dropdown
+                                                id="uploadAcademicTerm"
+                                                value={uploadAcademicTerm}
+                                                options={[
+                                                    { label: 'Term 1', value: 1 },
+                                                    { label: 'Term 2', value: 2 },
+                                                    { label: 'Term 3', value: 3 }
+                                                ]}
+                                                onChange={(e) => setUploadAcademicTerm(e.value)}
+                                                placeholder="Select term"
+                                                className="w-full"
+                                            />
+                                            <small className="text-500">Current term: {uploadAcademicTerm}</small>
                                         </div>
                                     </>
                                 )}

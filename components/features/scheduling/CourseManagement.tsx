@@ -21,6 +21,9 @@ import { Divider } from 'primereact/divider';
 import { Chip } from 'primereact/chip';
 import { Badge } from 'primereact/badge';
 import { TabView, TabPanel } from 'primereact/tabview';
+import { FileUpload, FileUploadHandlerEvent } from 'primereact/fileupload';
+import { Message } from 'primereact/message';
+import { ProgressBar } from 'primereact/progressbar';
 
 type SubjectCategory = 'core' | 'elective' | 'extracurricular';
 
@@ -53,6 +56,14 @@ const CourseManagement: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [dialogVisible, setDialogVisible] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
+
+    // Bulk upload state
+    const [uploadDialogVisible, setUploadDialogVisible] = useState(false);
+    const [uploadDepartment, setUploadDepartment] = useState<string>('');
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [parsedCourses, setParsedCourses] = useState<any[]>([]);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploading, setUploading] = useState(false);
 
     // Dropdown options
     const [departments, setDepartments] = useState<DropdownOption[]>([]);
@@ -251,10 +262,185 @@ const CourseManagement: React.FC = () => {
         setGlobalFilterValue(value);
     };
 
+    const parseCSV = (text: string): any[] => {
+        const lines = text.split('\n').filter((line) => line.trim());
+        if (lines.length < 2) return [];
+
+        const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+        const courses: any[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(',').map((v) => v.trim());
+            const course: any = {};
+
+            headers.forEach((header, index) => {
+                const value = values[index] || '';
+
+                switch (header) {
+                    case 'name':
+                        course.name = value;
+                        break;
+                    case 'code':
+                        course.code = value.toUpperCase();
+                        break;
+                    case 'category':
+                        course.category = value.toLowerCase() || 'core';
+                        break;
+                    case 'creditHours':
+                    case 'credithours':
+                    case 'credits':
+                        course.creditHours = parseInt(value) || 0;
+                        break;
+                    case 'description':
+                        course.description = value;
+                        break;
+                    case 'isgraded':
+                    case 'graded':
+                        course.isGraded = value.toLowerCase() === 'true' || value === '1';
+                        break;
+                }
+            });
+
+            if (course.name) {
+                course.school = user?.school || '';
+                course.site = user?.schoolSite || '';
+                course.isActive = true;
+                courses.push(course);
+            }
+        }
+
+        return courses;
+    };
+
+    const handleFileSelect = (event: FileUploadHandlerEvent) => {
+        const file = event.files[0];
+        if (!file) return;
+
+        setUploadFile(file);
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            const text = e.target?.result as string;
+            const parsed = parseCSV(text);
+            setParsedCourses(parsed);
+
+            if (parsed.length > 0) {
+                showToast('success', 'File Loaded', `${parsed.length} courses found in file`);
+            } else {
+                showToast('warn', 'No Data', 'No valid courses found in the file');
+            }
+        };
+
+        reader.onerror = () => {
+            showToast('error', 'Error', 'Failed to read file');
+        };
+
+        reader.readAsText(file);
+    };
+
+    const resetUploadDialog = () => {
+        setUploadDialogVisible(false);
+        setUploadDepartment('');
+        setUploadFile(null);
+        setParsedCourses([]);
+        setUploadProgress(0);
+        setUploading(false);
+    };
+
+    const downloadSampleCSV = () => {
+        // Create sample CSV content
+        const csvContent = `name,code,category,creditHours,description,isGraded
+Mathematics,MATH101,core,3,Introduction to Calculus,true
+Physics,PHY101,core,4,Fundamentals of Physics,true
+Art History,ART201,elective,2,Survey of Art History,true
+Music,MUS101,extracurricular,1,Introduction to Music,false
+Chemistry,CHEM101,core,4,General Chemistry,true`;
+
+        // Create a Blob from the CSV content
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+        // Create a download link
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'course_upload_sample.csv');
+        link.style.visibility = 'hidden';
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showToast('success', 'Downloaded', 'Sample CSV file downloaded successfully');
+    };
+
+    const uploadCourses = async () => {
+        if (!uploadDepartment) {
+            showToast('error', 'Validation Error', 'Please select a department');
+            return;
+        }
+
+        if (parsedCourses.length === 0) {
+            showToast('error', 'Validation Error', 'No courses to upload');
+            return;
+        }
+
+        try {
+            setUploading(true);
+            setUploadProgress(0);
+
+            const coursesWithDept = parsedCourses.map((course) => ({
+                ...course,
+                department: uploadDepartment
+            }));
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (let i = 0; i < coursesWithDept.length; i++) {
+                try {
+                    const response = await fetch('/api/subjects', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(coursesWithDept[i])
+                    });
+
+                    if (response.ok) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } catch (error) {
+                    errorCount++;
+                }
+
+                setUploadProgress(Math.round(((i + 1) / coursesWithDept.length) * 100));
+            }
+
+            if (successCount > 0) {
+                showToast('success', 'Upload Complete', `${successCount} courses uploaded successfully`);
+                fetchCourses();
+            }
+
+            if (errorCount > 0) {
+                showToast('warn', 'Partial Success', `${errorCount} courses failed to upload`);
+            }
+
+            if (successCount === coursesWithDept.length) {
+                resetUploadDialog();
+            }
+        } catch (error) {
+            showToast('error', 'Error', 'An error occurred during upload');
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const leftToolbarTemplate = () => {
         return (
             <div className="flex gap-2">
                 <Button label="New Course" icon="pi pi-plus" severity="success" onClick={openNew} />
+                <Button label="Upload Courses" icon="pi pi-upload" severity="help" onClick={() => setUploadDialogVisible(true)} />
             </div>
         );
     };
@@ -471,7 +657,7 @@ const CourseManagement: React.FC = () => {
                                     filter
                                     showClear
                                     className="w-full"
-                                    emptyMessage="No departments available"
+                                    emptyMessage={`No departments available for ${user?.schoolSite ? 'this school site' : 'this school'}`}
                                 />
                                 <small className="text-500 mt-1 block">The department that offers this course</small>
                             </div>
@@ -551,6 +737,151 @@ const CourseManagement: React.FC = () => {
                         </div>
                     </TabPanel>
                 </TabView>
+            </Dialog>
+
+            {/* Bulk Upload Dialog */}
+            <Dialog
+                visible={uploadDialogVisible}
+                style={{ width: '95vw', maxWidth: '700px' }}
+                header={
+                    <div className="flex align-items-center gap-2">
+                        <i className="pi pi-upload text-primary"></i>
+                        <span>Upload Multiple Courses</span>
+                    </div>
+                }
+                modal
+                className="p-fluid"
+                onHide={resetUploadDialog}
+                footer={
+                    <div className="flex justify-content-end gap-2">
+                        <Button label="Cancel" icon="pi pi-times" outlined onClick={resetUploadDialog} disabled={uploading} />
+                        <Button label="Upload Courses" icon="pi pi-check" onClick={uploadCourses} loading={uploading} disabled={uploading || !uploadDepartment || parsedCourses.length === 0} />
+                    </div>
+                }
+            >
+                <div className="grid">
+                    <div className="col-12">
+                        <Message severity="info" text="Upload multiple courses at once using a CSV file. All courses will be assigned to the selected department." className="mb-3" />
+                    </div>
+
+                    <div className="col-12">
+                        <Card className="bg-blue-50 border-1 border-blue-200 mb-3">
+                            <h4 className="text-blue-900 mt-0 mb-2 flex align-items-center gap-2">
+                                <i className="pi pi-sitemap"></i>
+                                Select Department
+                            </h4>
+                            <p className="text-blue-700 text-sm mb-3">
+                                All uploaded courses will belong to this department
+                                {departments.length > 0 && ` (${departments.length} departments available for your ${user?.schoolSite ? 'school site' : 'school'})`}
+                            </p>
+
+                            <Dropdown
+                                value={uploadDepartment}
+                                options={departments}
+                                onChange={(e) => setUploadDepartment(e.value)}
+                                placeholder="Select Department *"
+                                filter
+                                className="w-full"
+                                disabled={uploading}
+                                emptyMessage={`No departments found for ${user?.schoolSite ? 'this school site' : 'this school'}. Please create departments first.`}
+                            />
+                        </Card>
+                    </div>
+
+                    <div className="col-12">
+                        <Divider />
+                    </div>
+
+                    <div className="col-12">
+                        <h4 className="text-900 mt-0 mb-2 flex align-items-center gap-2">
+                            <i className="pi pi-file"></i>
+                            Upload CSV File
+                        </h4>
+                        <FileUpload mode="basic" name="coursesFile" accept=".csv" maxFileSize={1000000} customUpload uploadHandler={handleFileSelect} auto chooseLabel="Choose CSV File" className="mb-3" disabled={uploading || !uploadDepartment} />
+
+                        {!uploadDepartment && <Message severity="warn" text="Please select a department before uploading a file" />}
+                    </div>
+
+                    {parsedCourses.length > 0 && (
+                        <>
+                            <div className="col-12">
+                                <Divider />
+                            </div>
+
+                            <div className="col-12">
+                                <Card className="bg-green-50 border-1 border-green-200">
+                                    <div className="flex align-items-center justify-content-between mb-2">
+                                        <h4 className="text-green-900 m-0 flex align-items-center gap-2">
+                                            <i className="pi pi-check-circle"></i>
+                                            File Loaded Successfully
+                                        </h4>
+                                        <Badge value={parsedCourses.length} severity="success" size="large" />
+                                    </div>
+                                    <p className="text-green-700 text-sm m-0">
+                                        {parsedCourses.length} course{parsedCourses.length !== 1 ? 's' : ''} ready to upload
+                                    </p>
+                                </Card>
+                            </div>
+
+                            <div className="col-12">
+                                <h5 className="text-900 mb-2">Preview:</h5>
+                                <div className="surface-100 border-round p-3" style={{ maxHeight: '200px', overflow: 'auto' }}>
+                                    {parsedCourses.slice(0, 5).map((course, idx) => (
+                                        <div key={idx} className="mb-2 pb-2 border-bottom-1 surface-border">
+                                            <div className="flex align-items-center justify-content-between">
+                                                <span className="font-semibold text-900">{course.name}</span>
+                                                {course.code && <Chip label={course.code} className="text-xs" />}
+                                            </div>
+                                            <div className="flex gap-2 mt-1">
+                                                <Tag value={course.category} severity="info" />
+                                                <Tag value={`${course.creditHours} credits`} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {parsedCourses.length > 5 && (
+                                        <div className="text-center text-500 mt-2">
+                                            <small>... and {parsedCourses.length - 5} more</small>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {uploading && (
+                        <>
+                            <div className="col-12">
+                                <Divider />
+                            </div>
+                            <div className="col-12">
+                                <h5 className="text-900 mb-2">Upload Progress:</h5>
+                                <ProgressBar value={uploadProgress} />
+                                <p className="text-center text-500 text-sm mt-2">Uploading courses... {uploadProgress}%</p>
+                            </div>
+                        </>
+                    )}
+
+                    <div className="col-12 mt-3">
+                        <Card className="bg-yellow-50 border-1 border-yellow-200">
+                            <div className="flex align-items-start justify-content-between mb-2">
+                                <h5 className="text-yellow-900 mt-0 mb-0 flex align-items-center gap-2">
+                                    <i className="pi pi-info-circle"></i>
+                                    CSV Format
+                                </h5>
+                                <Button label="Download Sample" icon="pi pi-download" size="small" outlined severity="info" onClick={downloadSampleCSV} className="text-xs" />
+                            </div>
+                            <p className="text-yellow-800 text-sm mb-2">Your CSV file should have the following columns:</p>
+                            <div className="surface-0 border-round p-2 text-xs font-mono">
+                                <strong>name,code,category,creditHours,description,isGraded</strong>
+                            </div>
+                            <p className="text-yellow-800 text-sm mt-2 mb-0">
+                                <strong>Example:</strong>
+                                <br />
+                                <span className="text-xs font-mono">Mathematics,MATH101,core,3,Introduction to Calculus,true</span>
+                            </p>
+                        </Card>
+                    </div>
+                </div>
             </Dialog>
         </div>
     );

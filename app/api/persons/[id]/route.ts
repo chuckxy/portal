@@ -89,6 +89,32 @@ const putHandler = async (request: NextRequest, context: { params: Promise<{ id:
             return NextResponse.json({ success: false, message: 'Person not found' }, { status: 404 });
         }
 
+        // Track Balance Brought Forward changes for audit purposes
+        let balanceBFChanged = false;
+        let previousBalanceBF = 0;
+        let newBalanceBF = 0;
+
+        if (existingPerson.personCategory === 'student' && body.studentInfo) {
+            previousBalanceBF = existingPerson.studentInfo?.balanceBroughtForward || 0;
+            newBalanceBF = body.studentInfo?.balanceBroughtForward ?? previousBalanceBF;
+
+            if (previousBalanceBF !== newBalanceBF) {
+                balanceBFChanged = true;
+                console.log(`[AUDIT] Balance B/F change for student ${id}: ${previousBalanceBF} -> ${newBalanceBF}`);
+            }
+
+            // Validate Balance B/F is non-negative
+            if (newBalanceBF < 0) {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        message: 'Balance Brought Forward cannot be negative'
+                    },
+                    { status: 400 }
+                );
+            }
+        }
+
         // Check if username is being changed and if it already exists
         if (body.username && body.username.toLowerCase() !== existingPerson.username) {
             const duplicateUsername = await Person.findOne({
@@ -147,7 +173,15 @@ const putHandler = async (request: NextRequest, context: { params: Promise<{ id:
         return NextResponse.json({
             success: true,
             message: 'Person updated successfully',
-            person: updatedPerson
+            person: updatedPerson,
+            // Include audit info for Balance B/F changes
+            ...(balanceBFChanged && {
+                auditInfo: {
+                    balanceBroughtForwardChanged: true,
+                    previousValue: previousBalanceBF,
+                    newValue: newBalanceBF
+                }
+            })
         });
     } catch (error: any) {
         console.error('Error updating person:', error);
@@ -169,6 +203,17 @@ export const PUT = withActivityLogging(putHandler, {
     entityNameExtractor: (req, res) => {
         const person = res?.person;
         return person ? `${person.firstName} ${person.lastName}` : undefined;
+    },
+    // Include Balance B/F change details in activity log
+    metadataExtractor: (req, res) => {
+        if (res?.auditInfo?.balanceBroughtForwardChanged) {
+            return {
+                balanceBroughtForwardChanged: true,
+                previousBalanceBF: res.auditInfo.previousValue,
+                newBalanceBF: res.auditInfo.newValue
+            };
+        }
+        return undefined;
     }
 });
 

@@ -15,6 +15,8 @@ import { Skeleton } from 'primereact/skeleton';
 import { SelectButton } from 'primereact/selectbutton';
 import { useReactToPrint } from 'react-to-print';
 import FinancialStandingsPrintReport from '@/components/print/FinancialStandingsPrintReport';
+import { getAcademicYears } from '@/lib/utils/utilFunctions';
+import { useAuth } from '@/context/AuthContext';
 
 interface FinancialSummary {
     // Income
@@ -66,6 +68,7 @@ interface Site {
 }
 
 export const FinancialControllerDashboard: React.FC = () => {
+    const { user } = useAuth();
     const [summary, setSummary] = useState<FinancialSummary>({
         totalFeesExpected: 0,
         totalFeesReceived: 0,
@@ -105,7 +108,6 @@ export const FinancialControllerDashboard: React.FC = () => {
     const toast = useRef<Toast>(null);
     const printRef = useRef<HTMLDivElement>(null);
 
-    const academicYears = ['2025/2026', '2024/2025', '2023/2024'];
     const periodOptions = [
         { label: 'Today', value: 'today' },
         { label: 'This Week', value: 'week' },
@@ -118,7 +120,7 @@ export const FinancialControllerDashboard: React.FC = () => {
         fetchSchools();
         fetchFinancialData();
         initializeChart();
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         if (filters.school) {
@@ -151,11 +153,12 @@ export const FinancialControllerDashboard: React.FC = () => {
     };
 
     const fetchFinancialData = async () => {
+        if (!user) return;
         try {
             setLoading(true);
 
             const queryParams = new URLSearchParams();
-            if (filters.site) queryParams.append('site', filters.site);
+            queryParams.append('site', filters.site ? filters.site : user.schoolSite);
             if (filters.academicYear) queryParams.append('academicYear', filters.academicYear);
             if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom.toISOString());
             if (filters.dateTo) queryParams.append('dateTo', filters.dateTo.toISOString());
@@ -373,7 +376,7 @@ export const FinancialControllerDashboard: React.FC = () => {
                     </div>
                     <div className="col-12 md:col-2">
                         <label className="block text-sm font-medium mb-2">Academic Year</label>
-                        <Dropdown value={filters.academicYear} options={academicYears.map((y) => ({ label: y, value: y }))} onChange={(e) => setFilters({ ...filters, academicYear: e.value })} placeholder="Current Year" className="w-full" showClear />
+                        <Dropdown value={filters.academicYear} options={getAcademicYears} onChange={(e) => setFilters({ ...filters, academicYear: e.value })} placeholder="Current Year" className="w-full" showClear />
                     </div>
                     <div className="col-12 md:col-4">
                         <label className="block text-sm font-medium mb-2">Period View</label>

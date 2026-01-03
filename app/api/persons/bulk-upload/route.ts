@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         await connectDB();
 
         const body = await request.json();
-        const { persons, school, schoolSite, personCategory, defaultClass, defaultFaculty, defaultDepartment } = body;
+        const { persons, school, schoolSite, personCategory, defaultClass, defaultFaculty, defaultDepartment, defaultAcademicYear, defaultAcademicTerm } = body;
 
         if (!Array.isArray(persons) || persons.length === 0) {
             return NextResponse.json({ success: false, message: 'No persons data provided' }, { status: 400 });
@@ -63,47 +63,18 @@ export async function POST(request: NextRequest) {
             created: []
         };
 
-        // Get last student and employee IDs for auto-generation
-        const lastStudent = await Person.findOne({
-            personCategory: 'student',
-            school
-        })
-            .sort({ 'studentInfo.studentId': -1 })
-            .select('studentInfo.studentId')
-            .lean()
-            .exec();
+        // Get total count of all persons in the collection for this school
+        // Start counter from total count to avoid duplicates
+        const totalPersonCount = await Person.countDocuments().exec();
 
-        const lastEmployee = await Person.findOne({
-            personCategory: { $nin: ['student', 'parent'] },
-            school
-        })
-            .sort({ 'employeeInfo.customId': -1 })
-            .select('employeeInfo.customId')
-            .lean()
-            .exec();
-
-        let studentCounter = 1;
-        let employeeCounter = 1;
-
-        if (lastStudent?.studentInfo?.studentId) {
-            const match = lastStudent.studentInfo.studentId.match(/\d+$/);
-            if (match) {
-                studentCounter = parseInt(match[0]) + 1;
-            }
-        }
-
-        if (lastEmployee?.employeeInfo?.customId) {
-            const match = lastEmployee.employeeInfo.customId.match(/\d+$/);
-            if (match) {
-                employeeCounter = parseInt(match[0]) + 1;
-            }
-        }
+        // Start both student and employee counters at total count + 1
+        let studentCounter = totalPersonCount + 1;
+        let employeeCounter = totalPersonCount + 1;
 
         // Process each person
         for (let i = 0; i < persons.length; i++) {
             const personData = persons[i];
             const rowNumber = i + 1;
-
             try {
                 // Validate required fields
                 if (!personData.firstName) {
@@ -185,6 +156,47 @@ export async function POST(request: NextRequest) {
                     }
                     if (!personData.studentInfo.department && defaultDepartment) {
                         personData.studentInfo.department = defaultDepartment;
+                    }
+                    // Apply default academic year and term
+                    if (!personData.studentInfo.defaultAcademicYear && defaultAcademicYear) {
+                        personData.studentInfo.defaultAcademicYear = defaultAcademicYear;
+                    }
+                    if (!personData.studentInfo.defaultAcademicTerm && defaultAcademicTerm) {
+                        personData.studentInfo.defaultAcademicTerm = defaultAcademicTerm;
+                    }
+                    // Set balanceBroughtForward to 0 if not provided (ensure it's always defined for students)
+                    if (personData.studentInfo.balanceBroughtForward === undefined || personData.studentInfo.balanceBroughtForward === null) {
+                        personData.studentInfo.balanceBroughtForward = 0;
+                    }
+                    // Ensure balanceBroughtForward is non-negative
+                    if (personData.studentInfo.balanceBroughtForward < 0) {
+                        personData.studentInfo.balanceBroughtForward = 0;
+                    }
+
+                    // Initialize classHistory for students with currentClass
+                    if (!personData.studentInfo.classHistory) {
+                        personData.studentInfo.classHistory = [];
+                    }
+
+                    // If student has a current class, add it to class history
+                    if (personData.studentInfo.currentClass) {
+                        const currentDate = new Date();
+                        const currentMonth = currentDate.getMonth();
+                        const currentYear = currentDate.getFullYear();
+
+                        // Determine current academic year (Sept-Aug cycle)
+                        const academicYear = personData.studentInfo.defaultAcademicYear || (currentMonth >= 8 ? `${currentYear}/${currentYear + 1}` : `${currentYear - 1}/${currentYear}`);
+
+                        // Determine current term (rough estimate: Jan-Apr=1, May-Aug=2, Sept-Dec=3)
+                        const academicTerm = personData.studentInfo.defaultAcademicTerm || (currentMonth <= 3 ? 1 : currentMonth <= 7 ? 2 : 3);
+
+                        personData.studentInfo.classHistory.push({
+                            class: personData.studentInfo.currentClass,
+                            academicYear: academicYear,
+                            academicTerm: academicTerm,
+                            dateFrom: personData.studentInfo.dateJoined || currentDate,
+                            attendance: []
+                        });
                     }
                 } else if (personData.personCategory !== 'parent') {
                     if (!personData.employeeInfo) {

@@ -153,6 +153,34 @@ const postHandler = async (request: NextRequest) => {
             body.studentInfo.studentId = `STU${String(nextNumber).padStart(5, '0')}`;
         }
 
+        // Initialize classHistory for students with currentClass
+        if (body.personCategory === 'student' && body.studentInfo) {
+            if (!body.studentInfo.classHistory) {
+                body.studentInfo.classHistory = [];
+            }
+
+            // If student has a current class, add it to class history
+            if (body.studentInfo.currentClass) {
+                const currentDate = new Date();
+                const currentMonth = currentDate.getMonth();
+                const currentYear = currentDate.getFullYear();
+
+                // Determine current academic year (Sept-Aug cycle)
+                const academicYear = body.studentInfo.defaultAcademicYear || (currentMonth >= 8 ? `${currentYear}/${currentYear + 1}` : `${currentYear - 1}/${currentYear}`);
+
+                // Determine current term (rough estimate: Jan-Apr=1, May-Aug=2, Sept-Dec=3)
+                const academicTerm = body.studentInfo.defaultAcademicTerm || (currentMonth <= 3 ? 1 : currentMonth <= 7 ? 2 : 3);
+
+                body.studentInfo.classHistory.push({
+                    class: body.studentInfo.currentClass,
+                    academicYear: academicYear,
+                    academicTerm: academicTerm,
+                    dateFrom: body.studentInfo.dateJoined || currentDate,
+                    attendance: []
+                });
+            }
+        }
+
         if (body.personCategory !== 'student' && body.personCategory !== 'parent' && body.employeeInfo && !body.employeeInfo.customId) {
             const lastEmployee = await Person.findOne({
                 personCategory: { $nin: ['student', 'parent'] },

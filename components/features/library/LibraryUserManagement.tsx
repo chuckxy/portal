@@ -104,7 +104,7 @@ export default function LibraryUserManagement() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [user]);
     useEffect(() => {
         fetchSites();
     }, [user]);
@@ -120,12 +120,13 @@ export default function LibraryUserManagement() {
         setLoading(true);
         try {
             // Fetch library users
-            const usersResponse = await fetch('/api/library-users');
+            if (!user) return;
+            const usersResponse = await fetch(`/api/library-users?site=${user.schoolSite}`);
             const usersData = await usersResponse.json();
             setLibraryUsers(usersData);
 
             // Fetch persons for dropdown
-            const personsResponse = await fetch('/api/persons');
+            const personsResponse = await fetch(`/api/persons?site=${user.schoolSite}`);
             const personsData = await personsResponse.json();
             setPersons(personsData.persons.map((p: Person) => ({ _id: p._id, firstName: p.firstName, lastName: p.lastName, email: p.email, fullName: `${p.firstName} ${p.lastName}` })));
         } catch (error) {

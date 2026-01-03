@@ -9,6 +9,8 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const classId = searchParams.get('classId');
         const siteId = searchParams.get('siteId');
+        const schoolId = searchParams.get('school');
+        const site = searchParams.get('site');
         const academicYear = searchParams.get('academicYear');
         const academicTerm = searchParams.get('academicTerm');
         const isActive = searchParams.get('isActive');
@@ -17,6 +19,8 @@ export async function GET(request: NextRequest) {
 
         if (classId) query.class = classId;
         if (siteId) query.site = siteId;
+        if (schoolId) query.school = schoolId;
+        if (site) query.site = site;
         if (academicYear) query.academicYear = academicYear;
         if (academicTerm) query.academicTerm = parseInt(academicTerm);
         if (isActive !== null) query.isActive = isActive === 'true';

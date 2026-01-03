@@ -27,6 +27,7 @@ import { Steps } from 'primereact/steps';
 import { Sidebar } from 'primereact/sidebar';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { DataView } from 'primereact/dataview';
+import { useAuth } from '@/context/AuthContext';
 
 interface LendingItem {
     book: any;
@@ -82,6 +83,7 @@ const emptyLending: Partial<LibraryLending> = {
 };
 
 export default function LibraryLendingManagement() {
+    const { user } = useAuth();
     const [lendings, setLendings] = useState<LibraryLending[]>([]);
     const [persons, setPersons] = useState<any[]>([]);
     const [sites, setSites] = useState<any[]>([]);
@@ -181,8 +183,11 @@ export default function LibraryLendingManagement() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            // TODO: ADD DATA RETRIEVAL LOGIC CRITERIAS
-            const [lendingsRes, personsRes, sitesRes, itemsRes] = await Promise.all([fetch('/api/library-lending'), fetch('/api/persons'), fetch('/api/sites'), fetch('/api/library-items')]);
+            // Build URLs with site filter if user has a school site
+            const lendingUrl = user?.schoolSite ? `/api/library-lending?site=${user.schoolSite}` : '/api/library-lending';
+            const itemsUrl = user?.schoolSite ? `/api/library-items?site=${user.schoolSite}` : '/api/library-items';
+
+            const [lendingsRes, personsRes, sitesRes, itemsRes] = await Promise.all([fetch(lendingUrl), fetch('/api/persons'), fetch('/api/sites'), fetch(itemsUrl)]);
 
             const lendingsData = await lendingsRes.json();
             const personsData = await personsRes.json();

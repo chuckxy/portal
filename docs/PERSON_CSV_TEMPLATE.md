@@ -5,7 +5,7 @@
 ### Column Headers (Case Sensitive)
 
 ```
-FirstName,MiddleName,LastName,Username,Password,Email,Phone,Category,Gender,DateOfBirth
+FirstName,MiddleName,LastName,Username,Password,Email,Phone,Category,Gender,DateOfBirth,BalanceBroughtForward
 ```
 
 ## ✅ Required Columns
@@ -19,14 +19,34 @@ FirstName,MiddleName,LastName,Username,Password,Email,Phone,Category,Gender,Date
 
 ## 🔄 Optional Columns
 
-| Column      | Description       | Example          | Format                 |
-| ----------- | ----------------- | ---------------- | ---------------------- |
-| MiddleName  | Middle name       | Michael          | Text                   |
-| LastName    | Last name/surname | Doe              | Text                   |
-| Email       | Email address     | john@example.com | Valid email format     |
-| Phone       | Mobile number     | +233123456789    | Text with country code |
-| Gender      | Gender            | male             | male, female, other    |
-| DateOfBirth | Birth date        | 2005-01-15       | YYYY-MM-DD             |
+| Column                | Description                     | Example          | Format                 |
+| --------------------- | ------------------------------- | ---------------- | ---------------------- |
+| MiddleName            | Middle name                     | Michael          | Text                   |
+| LastName              | Last name/surname               | Doe              | Text                   |
+| Email                 | Email address                   | john@example.com | Valid email format     |
+| Phone                 | Mobile number                   | +233123456789    | Text with country code |
+| Gender                | Gender                          | male             | male, female, other    |
+| DateOfBirth           | Birth date                      | 2005-01-15       | YYYY-MM-DD             |
+| BalanceBroughtForward | Opening balance (students only) | 500.00           | Decimal, >= 0          |
+
+## 💰 Balance Brought Forward (B/F)
+
+**For Students Only**: This field captures any outstanding financial obligations from before system onboarding.
+
+| Column Aliases            | Description             |
+| ------------------------- | ----------------------- |
+| `BalanceBroughtForward`   | Primary column name     |
+| `Balance Brought Forward` | Alternative with spaces |
+| `BalanceBF`               | Short form              |
+| `Balance B/F`             | Accounting notation     |
+| `OpeningBalance`          | Alternative name        |
+
+**Rules:**
+
+-   Applied **only** to records with Category = `student`
+-   Must be a non-negative decimal number (e.g., 500.00)
+-   Defaults to 0.00 if not provided or for non-student records
+-   Represents opening debt that will be included in all financial calculations
 
 ## 🎯 Valid Category Values
 
@@ -43,7 +63,18 @@ Must be **lowercase** and one of:
 
 ## 📋 Sample Templates
 
-### Students Only
+### Students Only (With Balance B/F)
+
+```csv
+FirstName,MiddleName,LastName,Username,Password,Email,Phone,Category,Gender,DateOfBirth,BalanceBroughtForward
+John,M,Doe,jdoe,Password123,john.doe@school.com,+233123456789,student,male,2005-01-15,500.00
+Jane,A,Smith,jsmith,Password123,jane.smith@school.com,+233234567890,student,female,2006-03-20,0.00
+Michael,,Brown,mbrown,Password123,michael.brown@school.com,+233345678901,student,male,2005-08-10,1250.50
+Sarah,L,Johnson,sjohnson,Password123,sarah.johnson@school.com,+233456789012,student,female,2006-11-05,0.00
+David,K,Williams,dwilliams,Password123,david.williams@school.com,+233567890123,student,male,2005-02-28,750.00
+```
+
+### Students Only (Without Balance B/F - defaults to 0.00)
 
 ```csv
 FirstName,MiddleName,LastName,Username,Password,Email,Phone,Category,Gender,DateOfBirth

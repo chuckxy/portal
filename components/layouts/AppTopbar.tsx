@@ -1,6 +1,6 @@
 'use client';
 
-import React, { forwardRef, useImperativeHandle, useContext, useRef, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useContext, useRef, useState, useEffect } from 'react';
 
 import AppBreadCrumb from './AppBreadCrumb';
 import { LayoutContext } from './context/layoutcontext';
@@ -14,6 +14,8 @@ import { useAuth } from '@/context/AuthContext';
 
 const AppTopbar = forwardRef((props: { sidebarRef: React.RefObject<HTMLDivElement> }, ref) => {
     const [searchActive, setSearchActive] = useState(false);
+    const [schoolInfo, setSchoolInfo] = useState<any>(null);
+    const [siteInfo, setSiteInfo] = useState<any>(null);
 
     const btnRef1 = useRef(null);
     const btnRef2 = useRef(null);
@@ -24,11 +26,42 @@ const AppTopbar = forwardRef((props: { sidebarRef: React.RefObject<HTMLDivElemen
     const profileMenuRef = useRef(null);
 
     const { onMenuToggle, showConfigSidebar, showSidebar, layoutConfig } = useContext(LayoutContext);
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
 
     useImperativeHandle(ref, () => ({
         menubutton: menubuttonRef.current
     }));
+
+    // Fetch school and site info
+    useEffect(() => {
+        const fetchSchoolInfo = async () => {
+            if (!user?.school) return;
+
+            try {
+                const schoolRes = await fetch(`/api/schools/${user.school}`);
+                const schoolData = await schoolRes.json();
+                if (schoolData.success) {
+                    setSchoolInfo(schoolData.data);
+                }
+            } catch (error) {
+                console.error('Error fetching school info:', error);
+            }
+
+            if (user?.schoolSite) {
+                try {
+                    const siteRes = await fetch(`/api/sites/${user.schoolSite}`);
+                    const siteData = await siteRes.json();
+                    if (siteData.success) {
+                        setSiteInfo(siteData.data);
+                    }
+                } catch (error) {
+                    console.error('Error fetching site info:', error);
+                }
+            }
+        };
+
+        fetchSchoolInfo();
+    }, [user?.school, user?.schoolSite]);
 
     const activateSearch = () => {
         setSearchActive(true);
@@ -69,6 +102,20 @@ const AppTopbar = forwardRef((props: { sidebarRef: React.RefObject<HTMLDivElemen
                 </div>
                 <div className="topbar-end">
                     <ul className="topbar-menu">
+                        {/* School and Site Info */}
+                        {schoolInfo && (
+                            <li className="mr-3 hidden lg:flex align-items-center">
+                                <div className="flex align-items-center gap-2 border-1 surface-border border-round px-3 py-2 bg-primary-50">
+                                    <i className="pi pi-building text-primary" style={{ fontSize: '1rem' }}></i>
+                                    <div className="flex flex-column">
+                                        <span className="text-xs text-500">Current School</span>
+                                        <span className="font-semibold text-900 text-sm">{schoolInfo.schoolName}</span>
+                                        {siteInfo && <span className="text-xs text-primary">{siteInfo.siteName}</span>}
+                                    </div>
+                                </div>
+                            </li>
+                        )}
+
                         <li className="hidden lg:block">
                             <div className={classNames('topbar-search', { 'topbar-search-active': searchActive })}>
                                 <Button icon="pi pi-search" className="topbar-searchbutton p-button-text p-button-secondary text-color-secondary p-button-rounded flex-shrink-0" type="button" onClick={activateSearch}></Button>

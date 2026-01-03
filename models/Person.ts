@@ -95,6 +95,13 @@ export interface IStudentInfo {
     room?: string;
     previousSchool?: string;
     accountBalance: number;
+    /**
+     * Balance Brought Forward (B/F) - Opening outstanding balance at time of system onboarding.
+     * This represents any pre-existing financial obligations from before computerization.
+     * Should be treated as an opening debit when calculating total student debt.
+     * Default: 0.00, Non-nullable, Editable only by Admin/Finance roles.
+     */
+    balanceBroughtForward: number;
     defaultClass?: mongoose.Types.ObjectId;
     currentClass?: mongoose.Types.ObjectId;
     defaultAcademicTerm?: number;
@@ -423,6 +430,17 @@ const PersonSchema = new Schema<IPersonDoc, PersonModel, IPersonMethods>(
             accountBalance: {
                 type: Number,
                 default: 0,
+                index: true
+            },
+            /**
+             * Balance Brought Forward (B/F) - Opening outstanding balance at time of system onboarding.
+             * Represents pre-existing financial obligations from before computerization.
+             * Used in debt calculations: totalDebt = balanceBroughtForward + generatedCharges - payments
+             */
+            balanceBroughtForward: {
+                type: Number,
+                default: 0,
+                min: 0,
                 index: true
             },
             defaultClass: {

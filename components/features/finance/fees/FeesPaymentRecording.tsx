@@ -969,6 +969,21 @@ export const FeesPaymentRecording: React.FC<FeesPaymentRecordingProps> = ({ visi
                                                             {studentBalance.currency} {studentBalance.outstandingBalance.toLocaleString()}
                                                         </span>
                                                     </div>
+                                                    {/* Balance Brought Forward - Opening balance from before computerization */}
+                                                    {(studentBalance as any).balanceBroughtForward > 0 && (
+                                                        <>
+                                                            <div className="flex justify-content-between mb-2">
+                                                                <span className="font-medium text-xs text-orange-600">
+                                                                    <i className="pi pi-info-circle mr-1" title="Opening balance from before computerization"></i>
+                                                                    Balance B/F:
+                                                                </span>
+                                                                <span className="font-bold text-orange-600 text-sm">
+                                                                    {studentBalance.currency} {(studentBalance as any).balanceBroughtForward.toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                            <Divider className="my-1" />
+                                                        </>
+                                                    )}
                                                     {studentBalance.previousArrears > 0 && (
                                                         <>
                                                             <div className="flex justify-content-between mb-2">

@@ -11,13 +11,11 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const siteId = searchParams.get('site');
         const departmentId = searchParams.get('department');
-        const academicYear = searchParams.get('academicYear');
 
         let query: any = { isActive: true };
 
         if (siteId) query.site = siteId;
         if (departmentId) query.department = departmentId;
-        if (academicYear) query.academicYear = academicYear;
 
         const classes = await SiteClass.find(query)
             .populate('department', 'name')
@@ -45,7 +43,7 @@ const postHandler = async (request: NextRequest) => {
         await connectDB();
 
         const body = await request.json();
-        const { site, department, division, sequence, className, academicYear, prefect, classLimit, formMaster, subjects, isActive } = body;
+        const { site, department, division, sequence, className, prefect, classLimit, formMaster, subjects, isActive } = body;
 
         // Validate required fields
         if (!site || !division || !sequence) {
@@ -56,16 +54,16 @@ const postHandler = async (request: NextRequest) => {
             return NextResponse.json({ success: false, message: 'Sequence must be greater than 0' }, { status: 400 });
         }
 
-        // Check if class already exists with same site, sequence, division, and academic year
+        // Check if class already exists with same site, sequence, and division
         const existingClass = await SiteClass.findOne({
+            department,
             site,
             sequence,
-            division: division.toUpperCase(),
-            academicYear
+            division: division.toUpperCase()
         });
 
         if (existingClass) {
-            return NextResponse.json({ success: false, message: 'A class with this combination already exists for the selected academic year' }, { status: 409 });
+            return NextResponse.json({ success: false, message: 'A class with this site, level, and division already exists' }, { status: 409 });
         }
 
         // Create new class
@@ -75,7 +73,6 @@ const postHandler = async (request: NextRequest) => {
             division: division.toUpperCase(),
             sequence,
             className: className || `Form ${sequence}${division.toUpperCase()}`,
-            academicYear: academicYear || undefined,
             prefect: prefect || undefined,
             classLimit: classLimit || 0,
             formMaster: formMaster || undefined,

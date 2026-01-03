@@ -171,12 +171,16 @@ export default function LibraryItemManagement() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [user]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [itemsResponse, sitesResponse] = await Promise.all([fetch('/api/library-items'), fetch('/api/sites')]);
+            if (!user) return;
+            // Build URL with site filter if user has a school site
+            const libraryItemsUrl = user?.schoolSite ? `/api/library-items?site=${user.schoolSite}` : '/api/library-items';
+            console.log('Fetching library items from:', libraryItemsUrl);
+            const [itemsResponse, sitesResponse] = await Promise.all([fetch(libraryItemsUrl), fetch('/api/sites')]);
 
             const itemsData = await itemsResponse.json();
             const sitesData = await sitesResponse.json();

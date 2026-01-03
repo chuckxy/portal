@@ -27,6 +27,7 @@ interface DashboardStats {
     newAcquisitions: number;
     onlineBooksAdded: number;
     reservedBooks: number;
+    lowStockBooks: number;
 }
 
 interface Book {
@@ -99,11 +100,12 @@ export default function LibrarianDashboard() {
     // Fetch dashboard data
     useEffect(() => {
         fetchDashboardData();
-    }, []);
+    }, [user]);
 
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
+            if (!user) return;
             await Promise.all([fetchStats(), fetchBooks(), fetchBorrowedItems(), fetchUsers(), fetchAnalytics()]);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -116,7 +118,6 @@ export default function LibrarianDashboard() {
     const fetchStats = async () => {
         try {
             const url = userSite ? `/api/library-dashboard/stats?site=${userSite}` : '/api/library-dashboard/stats';
-            console.log(url);
             const response = await fetch(url);
             const data = await response.json();
             setStats(data);
@@ -571,7 +572,7 @@ export default function LibrarianDashboard() {
                 severity: 'warning',
                 icon: 'pi pi-inbox',
                 title: 'Low Stock Alert',
-                message: '5 popular books are running low in stock',
+                message: `${stats?.lowStockBooks || 0} popular books are running low in stock`,
                 action: () => setActiveTab(1)
             },
             {

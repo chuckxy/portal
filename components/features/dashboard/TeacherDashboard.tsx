@@ -10,7 +10,6 @@ import { Tag } from 'primereact/tag';
 import { Skeleton } from 'primereact/skeleton';
 import { Message } from 'primereact/message';
 import { Dialog } from 'primereact/dialog';
-import { Dropdown } from 'primereact/dropdown';
 import { useRouter } from 'next/navigation';
 import ExamScoreEntryForm from '@/components/features/scheduling/ExamScoreEntryForm';
 import ClassExamScoreEntry from '@/components/features/scheduling/ClassExamScoreEntry';

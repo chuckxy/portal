@@ -32,7 +32,6 @@ interface ClassData {
     division: string;
     sequence: number;
     className?: string;
-    academicYear?: string;
     prefect?: string;
     classLimit: number;
     formMaster?: {
@@ -73,18 +72,9 @@ const ClassManagement: React.FC = () => {
     // DataTable filters
     const [filters, setFilters] = useState({
         global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-        className: { value: null, matchMode: FilterMatchMode.CONTAINS },
-        academicYear: { value: null, matchMode: FilterMatchMode.EQUALS }
+        className: { value: null, matchMode: FilterMatchMode.CONTAINS }
     });
     const [globalFilterValue, setGlobalFilterValue] = useState('');
-
-    // Academic year options
-    const currentYear = new Date().getFullYear();
-    const academicYearOptions = [
-        { label: `${currentYear - 1} / ${currentYear}`, value: `${currentYear - 1}/${currentYear}` },
-        { label: `${currentYear} / ${currentYear + 1}`, value: `${currentYear}/${currentYear + 1}` },
-        { label: `${currentYear + 1} / ${currentYear + 2}`, value: `${currentYear + 1}/${currentYear + 2}` }
-    ];
 
     function getEmptyClass(): ClassData {
         return {
@@ -93,7 +83,6 @@ const ClassManagement: React.FC = () => {
             division: '',
             sequence: 1,
             className: '',
-            academicYear: ``,
             prefect: '',
             classLimit: 0,
             formMaster: undefined,
@@ -116,6 +105,16 @@ const ClassManagement: React.FC = () => {
         }
     }, [formData.sequence, formData.division]);
 
+    // Fetch subjects when department changes
+    useEffect(() => {
+        if (formData.department) {
+            fetchSubjectsByDepartment(formData.department);
+        } else {
+            // Clear subjects if no department is selected
+            setSubjects([]);
+        }
+    }, [formData.department]);
+
     useEffect(() => {
         fetchClasses();
         fetchDropdownData();
@@ -136,6 +135,30 @@ const ClassManagement: React.FC = () => {
             showToast('error', 'Error', 'Failed to load classes');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchSubjectsByDepartment = async (departmentId: string) => {
+        try {
+            const params = new URLSearchParams();
+            if (user?.school) params.append('school', user.school);
+            if (departmentId) params.append('department', departmentId);
+
+            const subjectResponse = await fetch(`/api/subjects?${params.toString()}`);
+            if (subjectResponse.ok) {
+                const subjectData = await subjectResponse.json();
+                setSubjects(
+                    subjectData.subjects?.map((s: any) => ({
+                        label: s.name,
+                        value: s._id
+                    })) || []
+                );
+            } else {
+                setSubjects([]);
+            }
+        } catch (error) {
+            console.error('Failed to fetch subjects:', error);
+            setSubjects([]);
         }
     };
 
@@ -181,17 +204,7 @@ const ClassManagement: React.FC = () => {
                 );
             }
 
-            // Fetch subjects
-            const subjectResponse = await fetch(`/api/subjects?${params.toString()}`);
-            if (subjectResponse.ok) {
-                const subjectData = await subjectResponse.json();
-                setSubjects(
-                    subjectData.subjects?.map((s: any) => ({
-                        label: s.name,
-                        value: s._id
-                    })) || []
-                );
-            }
+            // Note: Subjects will be fetched when department is selected
 
             // Fetch school sites
             const siteParams = new URLSearchParams();
@@ -414,14 +427,13 @@ const ClassManagement: React.FC = () => {
                     rowsPerPageOptions={[5, 10, 25, 50]}
                     dataKey="_id"
                     filters={filters}
-                    globalFilterFields={['className', 'division', 'academicYear']}
+                    globalFilterFields={['className', 'division']}
                     emptyMessage="No classes found"
                     className="datatable-responsive"
                     responsiveLayout="scroll"
                     stripedRows
                 >
                     <Column field="className" header="Class Name" sortable style={{ minWidth: '150px' }} />
-                    <Column field="academicYear" header="Academic Year" sortable style={{ minWidth: '130px' }} />
                     <Column body={departmentBodyTemplate} header="Department" style={{ minWidth: '150px' }} />
                     <Column body={formMasterBodyTemplate} header="Form Master" style={{ minWidth: '150px' }} />
                     <Column body={capacityBodyTemplate} header="Capacity" sortable style={{ minWidth: '150px' }} />
@@ -440,7 +452,7 @@ const ClassManagement: React.FC = () => {
                         </div>
                         <div>
                             <h3 className="m-0 text-900">{isEditMode ? 'Edit Class' : 'Create New Class'}</h3>
-                            <p className="m-0 mt-1 text-sm text-600">{isEditMode ? 'Update class information' : 'Set up a new class for the selected academic year'}</p>
+                            <p className="m-0 mt-1 text-sm text-600">{isEditMode ? 'Update class information' : 'Set up a new class for your school site'}</p>
                         </div>
                     </div>
                 }
@@ -458,7 +470,6 @@ const ClassManagement: React.FC = () => {
                                     <div>
                                         <h4 className="text-primary-900 m-0 mb-1">Class Preview</h4>
                                         <p className="text-2xl font-bold text-primary-900 m-0">{generatedClassName}</p>
-                                        <p className="text-primary-700 text-sm mt-1 m-0">Academic Year: {formData.academicYear}</p>
                                     </div>
                                     <i className="pi pi-eye text-4xl text-primary-400"></i>
                                 </div>
@@ -478,14 +489,6 @@ const ClassManagement: React.FC = () => {
                     </div>
 
                     <div className="col-12 md:col-6">
-                        <label htmlFor="academicYear" className="font-semibold text-900 mb-2 block">
-                            Academic Year <span className="text-red-500">*</span>
-                        </label>
-                        <Dropdown id="academicYear" value={formData.academicYear} options={academicYearOptions} onChange={(e) => setFormData({ ...formData, academicYear: e.value })} placeholder="Select Academic Year" className="w-full" />
-                        <small className="text-500 mt-1 block">The school year this class belongs to</small>
-                    </div>
-
-                    <div className="col-12 md:col-6">
                         <label htmlFor="department" className="font-semibold text-900 mb-2 block">
                             Department <span className="text-500">(Optional)</span>
                         </label>
@@ -493,7 +496,9 @@ const ClassManagement: React.FC = () => {
                             id="department"
                             value={formData.department}
                             options={departments}
-                            onChange={(e) => setFormData({ ...formData, department: e.value })}
+                            onChange={(e) => {
+                                setFormData({ ...formData, department: e.value, subjects: [] });
+                            }}
                             placeholder="General / All Departments"
                             filter
                             showClear
@@ -711,11 +716,12 @@ const ClassManagement: React.FC = () => {
                                             value={formData.subjects}
                                             options={subjects}
                                             onChange={(e) => setFormData({ ...formData, subjects: e.value })}
-                                            placeholder="Select subjects for this class"
+                                            placeholder={formData.department ? 'Select subjects for this class' : 'Select a department first'}
                                             filter
                                             display="chip"
                                             className="w-full"
-                                            emptyMessage="No subjects available"
+                                            disabled={!formData.department}
+                                            emptyMessage={formData.department ? 'No subjects available for this department' : 'Please select a department first'}
                                         />
                                         <small className="text-500 mt-1 block">
                                             {formData.subjects && formData.subjects.length > 0 ? <span className="text-green-600">✓ {formData.subjects.length} subject(s) selected</span> : <span>No subjects assigned yet</span>}

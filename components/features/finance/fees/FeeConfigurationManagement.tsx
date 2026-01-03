@@ -197,8 +197,9 @@ const FeeConfigurationManagement: React.FC = () => {
         try {
             let url = '/api/fee-configurations';
             if (user?.school) {
-                url += `?school=${user.school}`;
+                url += `?site=${user.schoolSite}`;
             }
+
             const response = await fetch(url);
             const data = await response.json();
             setFeeConfigurations(Array.isArray(data) ? data : data.feeConfigurations || []);

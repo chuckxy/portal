@@ -29,6 +29,8 @@ export interface LoggingOptions {
     entityIdExtractor?: (req: NextRequest, response: any) => string | undefined | Promise<string | undefined>;
     /** Extract entity name from request/response */
     entityNameExtractor?: (req: NextRequest, response: any) => string | undefined | Promise<string | undefined>;
+    /** Extract additional metadata for the activity log */
+    metadataExtractor?: (req: NextRequest, response: any) => Record<string, any> | undefined | Promise<Record<string, any> | undefined>;
     /** Skip logging for certain conditions */
     skipCondition?: (req: NextRequest) => boolean;
     /** Extract previous state for updates/deletes */
@@ -268,6 +270,9 @@ export function withActivityLogging(handler: RouteHandler, options: LoggingOptio
             // Calculate state diff for updates
             const stateDiff = previousState && responseData?.data ? calculateStateDiff(previousState, responseData.data) : undefined;
 
+            // Extract additional metadata if provided
+            const metadata = options.metadataExtractor ? await Promise.resolve(options.metadataExtractor(request, responseData)) : undefined;
+
             // Log the activity
             await activityLogger.log({
                 context: userContext as LogContext,
@@ -285,6 +290,7 @@ export function withActivityLogging(handler: RouteHandler, options: LoggingOptio
                 request: requestInfo,
                 outcome,
                 previousState: stateDiff,
+                metadata,
                 sensitiveDataMasked: true,
                 gdprRelevant: options.gdprRelevant
             });

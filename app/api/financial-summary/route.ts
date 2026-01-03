@@ -7,6 +7,50 @@ import DailyFeeCollection from '@/models/DailyFeeCollection';
 import Expenditure from '@/models/Expenditure';
 import Scholarship from '@/models/Scholarship';
 
+/**
+ * Calculate historical arrears based on student's class history
+ */
+async function calculateHistoricalArrears(studentId: string, classHistory: any[], currentAcademicYear: string) {
+    let totalArrears = 0;
+
+    for (const history of classHistory) {
+        // Skip current period
+        if (history.academicYear === currentAcademicYear) {
+            continue;
+        }
+
+        // Skip future periods
+        if (history.academicYear > currentAcademicYear) {
+            continue;
+        }
+
+        // Get fees configuration for this period and class
+        const feeConfig = await FeesConfiguration.findOne({
+            class: history.class,
+            academicYear: history.academicYear,
+            academicTerm: history.academicTerm,
+            isActive: true
+        }).lean();
+
+        if (!feeConfig) continue;
+
+        const periodFees = feeConfig.totalAmount || 0;
+
+        // Get payments for this specific period
+        const periodPayments = await FeesPayment.find({
+            student: studentId,
+            academicYear: history.academicYear,
+            academicTerm: history.academicTerm,
+            status: { $in: ['confirmed', 'pending'] }
+        }).lean();
+
+        const periodPaid = periodPayments.reduce((sum, payment) => sum + payment.amountPaid, 0);
+        totalArrears += periodFees - periodPaid;
+    }
+
+    return totalArrears;
+}
+
 export async function GET(request: NextRequest) {
     try {
         await connectDB();
@@ -140,12 +184,18 @@ export async function GET(request: NextRequest) {
         // RECEIVABLES
 
         // Calculate outstanding from all active students
+        const studentsQuery: any = {
+            personCategory: 'student',
+            isActive: true,
+            'studentInfo.currentClass': { $exists: true, $ne: null }
+        };
+        if (site) studentsQuery.schoolSite = site;
+
         // @ts-ignore
-        const students = await Person.find({ personCategory: 'student', isActive: true, 'studentInfo.currentClass': { $exists: true, $ne: null } })
-            .populate('studentInfo.currentClass')
-            .lean();
+        const students = await Person.find(studentsQuery).populate('studentInfo.currentClass').lean();
 
         let totalOutstanding = 0;
+        let totalBalanceBroughtForward = 0; // Aggregate B/F across all students
         let criticalDebtors = 0;
         let overdueAmount = 0;
 
@@ -161,6 +211,14 @@ export async function GET(request: NextRequest) {
 
             if (!classConfig) continue;
 
+            // Get Balance Brought Forward (opening balance from before computerization)
+            const balanceBroughtForward = (student.studentInfo as any)?.balanceBroughtForward || 0;
+            totalBalanceBroughtForward += balanceBroughtForward;
+
+            // Calculate historical arrears from class history
+            const classHistory = (student.studentInfo as any)?.classHistory || [];
+            const historicalArrears = await calculateHistoricalArrears(student._id.toString(), classHistory, effectiveAcademicYear);
+
             const payments = await FeesPayment.find({
                 student: student._id,
                 academicYear: effectiveAcademicYear,
@@ -168,12 +226,18 @@ export async function GET(request: NextRequest) {
             }).lean();
 
             const paid = payments.reduce((sum, p) => sum + p.amountPaid, 0);
-            const outstanding = classConfig.totalAmount - paid;
+
+            // Calculate outstanding: B/F + historical arrears + current period outstanding
+            // Historical arrears can be negative (overpayment)
+            const currentPeriodOutstanding = classConfig.totalAmount - paid;
+            const outstanding = balanceBroughtForward + historicalArrears + currentPeriodOutstanding;
 
             if (outstanding > 0) {
                 totalOutstanding += outstanding;
 
-                const percentagePaid = (paid / classConfig.totalAmount) * 100;
+                // Calculate percentage based on total required (current fees + historical arrears + balance B/F)
+                const totalRequired = classConfig.totalAmount + historicalArrears + balanceBroughtForward;
+                const percentagePaid = totalRequired > 0 ? (paid / totalRequired) * 100 : 0;
                 if (percentagePaid < 25) criticalDebtors++;
 
                 // Check if overdue
@@ -304,6 +368,7 @@ export async function GET(request: NextRequest) {
                 pendingExpenditures,
                 approvedExpenditures,
                 totalOutstanding,
+                totalBalanceBroughtForward, // Aggregate opening balances from before computerization
                 criticalDebtors,
                 overdueAmount,
                 netCashFlow,

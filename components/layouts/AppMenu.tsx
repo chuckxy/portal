@@ -108,7 +108,8 @@ const AppMenu = () => {
             icon: 'pi pi-shield',
             items: [
                 { label: 'School Data Purge', icon: 'pi pi-fw pi-trash', to: '/admin/school-purge', class: 'text-red-600' },
-                { label: 'Activity Logs', icon: 'pi pi-fw pi-history', to: '/activity-logs' }
+                { label: 'Activity Logs', icon: 'pi pi-fw pi-history', to: '/activity-logs' },
+                { label: 'Bulk Academic Update', icon: 'pi pi-fw pi-history', to: '/academics/bulk-operations' }
             ]
         }
     ];

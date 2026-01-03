@@ -49,6 +49,7 @@ interface DebtorStudent {
             name: string;
         };
         accountBalance: number;
+        balanceBroughtForward?: number;
     };
     site: {
         _id: string;
@@ -61,6 +62,8 @@ interface DebtorStudent {
     academicYear: string;
     academicTerm?: number;
     totalFeesRequired: number;
+    /** Balance Brought Forward - Opening balance from before computerization */
+    balanceBroughtForward?: number;
     totalFeesPaid: number;
     outstandingBalance: number;
     percentagePaid: number;
@@ -843,6 +846,21 @@ export const StudentDebtorsManagement: React.FC = () => {
                                         }).format(selectedDebtor.totalFeesRequired)}
                                     </span>
                                 </div>
+                                {/* Balance Brought Forward - Opening balance from before computerization */}
+                                {selectedDebtor.balanceBroughtForward && selectedDebtor.balanceBroughtForward > 0 && (
+                                    <div className="flex justify-content-between mb-3 pb-2 border-bottom-1 border-300">
+                                        <span className="text-600">
+                                            <i className="pi pi-info-circle mr-1 text-orange-500" title="Opening balance from before computerization"></i>
+                                            Balance B/F:
+                                        </span>
+                                        <span className="font-bold text-orange-600">
+                                            {new Intl.NumberFormat('en-GH', {
+                                                style: 'currency',
+                                                currency: 'GHS'
+                                            }).format(selectedDebtor.balanceBroughtForward)}
+                                        </span>
+                                    </div>
+                                )}
                                 <div className="flex justify-content-between mb-3 pb-2 border-bottom-1 border-300">
                                     <span className="text-600">Total Paid:</span>
                                     <span className="font-bold text-green-600">

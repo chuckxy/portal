@@ -157,6 +157,27 @@ export async function GET(request: NextRequest) {
         // Reserved books
         const reservedBooks = 0; // TODO: Implement reservation system
 
+        // Low stock books - count items with total quantity less than 3 at this site
+        const lowStockBooksAgg = await LibraryItem.aggregate([
+            { $match: { isActive: true, ...siteInventoryMatch } },
+            { $unwind: '$siteInventory' },
+            ...(siteId ? [{ $match: { 'siteInventory.site': new mongoose.Types.ObjectId(siteId) } }] : []),
+            {
+                $match: {
+                    'siteInventory.quantity': { $lt: 3, $gt: 0 }
+                }
+            },
+            {
+                $group: {
+                    _id: '$_id'
+                }
+            },
+            {
+                $count: 'total'
+            }
+        ]);
+        const lowStockBooks = lowStockBooksAgg[0]?.total || 0;
+
         return NextResponse.json({
             totalBooks,
             availableBooks,
@@ -165,7 +186,8 @@ export async function GET(request: NextRequest) {
             activeUsers,
             newAcquisitions,
             onlineBooksAdded,
-            reservedBooks
+            reservedBooks,
+            lowStockBooks
         });
     } catch (error: any) {
         console.error('Error fetching dashboard stats:', error);

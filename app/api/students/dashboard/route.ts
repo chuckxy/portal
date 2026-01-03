@@ -183,11 +183,21 @@ export async function GET(request: NextRequest) {
                     .lean()
                     .exec();
 
+                // Get Balance Brought Forward (opening balance from before computerization)
+                const balanceBroughtForward = student.studentInfo?.balanceBroughtForward || 0;
+
                 // Calculate totals
                 const totalFeesRequired = activeFeeConfig.totalAmount || 0;
                 const totalFeesPaid = payments.reduce((sum, payment) => sum + (payment.amountPaid || 0), 0);
-                const outstandingBalance = Math.max(0, totalFeesRequired - totalFeesPaid);
-                const percentagePaid = totalFeesRequired > 0 ? (totalFeesPaid / totalFeesRequired) * 100 : 0;
+                const currentPeriodOutstanding = Math.max(0, totalFeesRequired - totalFeesPaid);
+
+                // Total outstanding includes Balance Brought Forward
+                // Formula: totalDebt = balanceBroughtForward + generatedCharges - payments
+                const outstandingBalance = currentPeriodOutstanding + balanceBroughtForward;
+
+                // Calculate percentage based on total required (fees + balance B/F)
+                const totalRequired = totalFeesRequired + balanceBroughtForward;
+                const percentagePaid = totalRequired > 0 ? (totalFeesPaid / totalRequired) * 100 : 0;
 
                 // Calculate days overdue if payment deadline has passed
                 let daysOverdue = undefined;
@@ -214,6 +224,7 @@ export async function GET(request: NextRequest) {
 
                 financialData = {
                     accountBalance: student.studentInfo?.accountBalance || 0,
+                    balanceBroughtForward, // Opening balance from before computerization
                     totalFeesRequired,
                     totalFeesPaid,
                     outstandingBalance,

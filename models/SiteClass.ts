@@ -10,11 +10,10 @@ export interface IFormMaster {
 // Interface for SiteClass document
 export interface ISiteClass extends Document {
     site: mongoose.Types.ObjectId;
-    department?: mongoose.Types.ObjectId;
+    department: mongoose.Types.ObjectId;
     division: string;
     sequence: number;
     className?: string;
-    academicYear?: string;
     prefect?: mongoose.Types.ObjectId;
     classLimit: number;
     formMaster: IFormMaster;
@@ -40,6 +39,7 @@ const SiteClassSchema = new Schema<ISiteClass>(
         department: {
             type: Schema.Types.ObjectId,
             ref: 'Department',
+            required: true,
             index: true
         },
         division: {
@@ -54,11 +54,6 @@ const SiteClassSchema = new Schema<ISiteClass>(
             min: 1
         },
         className: {
-            type: String,
-            trim: true,
-            index: true
-        },
-        academicYear: {
             type: String,
             trim: true,
             index: true
@@ -113,8 +108,8 @@ const SiteClassSchema = new Schema<ISiteClass>(
     }
 );
 
-// Indexes
-SiteClassSchema.index({ site: 1, sequence: 1, division: 1, academicYear: 1 }, { unique: true });
+// Indexes - unique constraint: one class per site/sequence/division combination
+SiteClassSchema.index({ department: 1, site: 1, sequence: 1, division: 1 }, { unique: true });
 SiteClassSchema.index({ site: 1, className: 1 });
 SiteClassSchema.index({ 'formMaster.teacher': 1 });
 

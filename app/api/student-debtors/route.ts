@@ -4,6 +4,68 @@ import Person from '@/models/Person';
 import FeesConfiguration from '@/models/FeesConfiguration';
 import FeesPayment from '@/models/FeesPayment';
 
+/**
+ * Calculate historical arrears based on student's class history
+ * @param studentId - Student ID
+ * @param classHistory - Array of class history entries
+ * @param currentAcademicYear - Current academic year to exclude from arrears
+ * @param currentAcademicTerm - Current academic term to exclude from arrears
+ * @returns Total arrears (can be negative if overpaid)
+ */
+async function calculateHistoricalArrears(studentId: string, classHistory: any[], currentAcademicYear: string, currentAcademicTerm?: number) {
+    let totalArrears = 0;
+
+    // Process each class history entry
+    for (const history of classHistory) {
+        // Skip current period (will be calculated separately)
+        if (history.academicYear === currentAcademicYear) {
+            if (currentAcademicTerm === undefined || history.academicTerm === currentAcademicTerm) {
+                continue;
+            }
+            // If current term is specified and this is an earlier term in same year, include it
+            if (currentAcademicTerm && history.academicTerm >= currentAcademicTerm) {
+                continue;
+            }
+        }
+
+        // Skip future periods
+        if (history.academicYear > currentAcademicYear) {
+            continue;
+        }
+
+        // Get fees configuration for this period and class
+        const feeConfig = await FeesConfiguration.findOne({
+            class: history.class,
+            academicYear: history.academicYear,
+            academicTerm: history.academicTerm,
+            isActive: true
+        }).lean();
+
+        if (!feeConfig) {
+            // No fee config found for this period - skip
+            continue;
+        }
+
+        const periodFees = feeConfig.totalAmount || 0;
+
+        // Get payments for this specific period
+        const periodPayments = await FeesPayment.find({
+            student: studentId,
+            academicYear: history.academicYear,
+            academicTerm: history.academicTerm,
+            status: { $in: ['confirmed', 'pending'] }
+        }).lean();
+
+        const periodPaid = periodPayments.reduce((sum, payment) => sum + payment.amountPaid, 0);
+        const periodArrears = periodFees - periodPaid;
+
+        // Add to total arrears (can be negative if overpaid)
+        totalArrears += periodArrears;
+    }
+
+    return totalArrears;
+}
+
 export async function GET(request: NextRequest) {
     try {
         await connectDB();
@@ -114,9 +176,20 @@ export async function GET(request: NextRequest) {
             const payments = await FeesPayment.find(paymentQuery).sort({ datePaid: -1 }).lean();
 
             const totalFeesPaid = payments.reduce((sum, payment) => sum + payment.amountPaid, 0);
-            const outstandingBalance = feeConfig.totalAmount - totalFeesPaid;
 
-            // Only include students with outstanding balance > 0
+            // Get Balance Brought Forward (opening balance from before computerization)
+            const balanceBroughtForward = student.studentInfo?.balanceBroughtForward || 0;
+
+            // Calculate historical arrears from class history
+            const classHistory = student.studentInfo?.classHistory || [];
+            const historicalArrears = await calculateHistoricalArrears(student._id.toString(), classHistory, effectiveAcademicYear, feeConfig.academicTerm);
+
+            // Calculate outstanding: current period outstanding + historical arrears + balance brought forward
+            // Historical arrears can be negative (overpayment) which reduces total
+            const currentPeriodOutstanding = feeConfig.totalAmount - totalFeesPaid;
+            const outstandingBalance = balanceBroughtForward + historicalArrears + currentPeriodOutstanding;
+
+            // Only include students with outstanding balance > 0 (including balance B/F)
             if (outstandingBalance <= 0) {
                 console.log(`Student ${student._id} has no outstanding balance (${outstandingBalance})`);
                 continue;
@@ -125,7 +198,10 @@ export async function GET(request: NextRequest) {
             // Apply minimum balance filter
             if (minBalance && outstandingBalance < parseFloat(minBalance)) continue;
 
-            const percentagePaid = feeConfig.totalAmount > 0 ? (totalFeesPaid / feeConfig.totalAmount) * 100 : 0;
+            // Calculate percentage paid based on total required (current fees + historical arrears + balance B/F)
+            // Note: if historicalArrears is negative (overpaid), it reduces the total required
+            const totalRequired = feeConfig.totalAmount + historicalArrears + balanceBroughtForward;
+            const percentagePaid = totalRequired > 0 ? (totalFeesPaid / totalRequired) * 100 : 0;
 
             // Calculate days overdue if deadline exists
             let daysOverdue = 0;
@@ -152,13 +228,16 @@ export async function GET(request: NextRequest) {
                 studentInfo: {
                     guardian: student.studentInfo.guardian,
                     currentClass: currentClass,
-                    accountBalance: student.studentInfo.accountBalance
+                    accountBalance: student.studentInfo.accountBalance,
+                    balanceBroughtForward: balanceBroughtForward
                 },
                 site: feeConfig.site,
                 class: currentClass,
                 academicYear: effectiveAcademicYear,
                 academicTerm: feeConfig.academicTerm,
                 totalFeesRequired: feeConfig.totalAmount,
+                balanceBroughtForward: balanceBroughtForward, // Opening balance from before computerization
+                historicalArrears: historicalArrears, // Arrears from previous periods based on class history
                 totalFeesPaid: totalFeesPaid,
                 outstandingBalance: outstandingBalance,
                 percentagePaid: parseFloat(percentagePaid.toFixed(2)),

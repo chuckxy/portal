@@ -32,6 +32,8 @@ interface DashboardData {
     allExamScores: any[];
     financial?: {
         accountBalance: number;
+        /** Balance Brought Forward - Opening balance from before computerization */
+        balanceBroughtForward?: number;
         totalFeesRequired: number;
         totalFeesPaid: number;
         outstandingBalance: number;
@@ -565,10 +567,20 @@ export default function StudentDashboard({ studentId }: StudentDashboardProps) {
                                                             <span className="font-semibold">{formatCurrency(fee.amount)}</span>
                                                         </div>
                                                     ))}
+                                                    {/* Balance Brought Forward - Opening balance from before computerization */}
+                                                    {dashboardData.financial.balanceBroughtForward && dashboardData.financial.balanceBroughtForward > 0 && (
+                                                        <div className="flex justify-content-between p-2 surface-100 border-round border-orange-200 border-1">
+                                                            <span className="text-700">
+                                                                <i className="pi pi-info-circle mr-1 text-orange-500" title="Opening balance from before computerization"></i>
+                                                                Balance B/F (Opening)
+                                                            </span>
+                                                            <span className="font-semibold text-orange-600">{formatCurrency(dashboardData.financial.balanceBroughtForward)}</span>
+                                                        </div>
+                                                    )}
                                                     <Divider className="my-2" />
                                                     <div className="flex justify-content-between">
                                                         <span className="font-bold">Total:</span>
-                                                        <span className="font-bold text-xl">{formatCurrency(dashboardData.financial.totalFeesRequired)}</span>
+                                                        <span className="font-bold text-xl">{formatCurrency(dashboardData.financial.totalFeesRequired + (dashboardData.financial.balanceBroughtForward || 0))}</span>
                                                     </div>
                                                 </div>
                                             </Card>

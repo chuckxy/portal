@@ -1,0 +1,194 @@
+/* 
+ * Timetable Print Styles
+ * A3 Landscape and Portrait support for academic timetables
+ * These styles are designed for large-format printing suitable for notice boards
+ */
+
+/* ==================== A3 LANDSCAPE PRINT STYLES ==================== */
+@media print {
+    /* Reset defaults for clean printing */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+
+    /* Hide non-printable elements */
+    .no-print,
+    .p-dialog-header,
+    .p-dialog-footer,
+    .print-options-panel,
+    nav,
+    header,
+    footer,
+    .layout-topbar,
+    .layout-sidebar,
+    .p-toast,
+    .p-confirm-dialog {
+        display: none !important;
+    }
+
+    /* Reset page margins */
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+    }
+
+    /* Ensure backgrounds print */
+    .timetable-print-report,
+    .timetable-print-report * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}
+
+/* A3 Landscape Page Setup */
+@page timetable-landscape {
+    size: A3 landscape;
+    margin: 10mm;
+}
+
+/* A3 Portrait Page Setup */
+@page timetable-portrait {
+    size: A3 portrait;
+    margin: 10mm;
+}
+
+/* Apply page styles based on data attribute */
+.timetable-print-report[data-orientation="landscape"] {
+    page: timetable-landscape;
+}
+
+.timetable-print-report[data-orientation="portrait"] {
+    page: timetable-portrait;
+}
+
+/* ==================== SCREEN PREVIEW STYLES ==================== */
+@media screen {
+    .timetable-print-report {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+    }
+
+    /* Preview scaling for dialog */
+    .print-preview-wrapper {
+        overflow: hidden;
+    }
+    
+    .print-preview-wrapper[data-orientation="landscape"] .timetable-print-report {
+        transform-origin: top left;
+    }
+    
+    .print-preview-wrapper[data-orientation="portrait"] .timetable-print-report {
+        transform-origin: top left;
+    }
+}
+
+/* ==================== TIMETABLE GRID ENHANCEMENTS ==================== */
+
+/* Ensure table doesn't break across pages */
+.timetable-grid {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+/* Keep header with content */
+.timetable-grid thead {
+    display: table-header-group;
+}
+
+/* Prevent row breaks */
+.timetable-grid tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+/* ==================== PRINT QUALITY ENHANCEMENTS ==================== */
+
+/* Sharp text rendering */
+.timetable-print-report {
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure borders print correctly */
+.timetable-grid,
+.timetable-grid th,
+.timetable-grid td {
+    border-collapse: collapse;
+}
+
+/* Color palette for high contrast printing */
+.schedule-entry {
+    border-width: 4px !important;
+}
+
+/* Legend visibility */
+.legend-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+/* Footer always at bottom */
+.report-footer {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+/* ==================== RESPONSIVE PRINT ADJUSTMENTS ==================== */
+
+/* Landscape specific adjustments */
+.timetable-print-report[data-orientation="landscape"] .timetable-grid {
+    font-size: 11px;
+}
+
+.timetable-print-report[data-orientation="landscape"] .schedule-cell {
+    min-width: 100px;
+}
+
+/* Portrait specific adjustments */
+.timetable-print-report[data-orientation="portrait"] .timetable-grid {
+    font-size: 9px;
+}
+
+.timetable-print-report[data-orientation="portrait"] .schedule-cell {
+    min-width: 60px;
+}
+
+.timetable-print-report[data-orientation="portrait"] .subject-name {
+    font-size: 9px;
+}
+
+.timetable-print-report[data-orientation="portrait"] .teacher-name,
+.timetable-print-report[data-orientation="portrait"] .room-info {
+    font-size: 8px;
+}
+
+/* ==================== BROWSER COMPATIBILITY ==================== */
+
+/* Chrome/Safari print fixes */
+@media print and (-webkit-min-device-pixel-ratio: 0) {
+    .timetable-print-report {
+        -webkit-print-color-adjust: exact;
+    }
+}
+
+/* Firefox print fixes */
+@-moz-document url-prefix() {
+    @media print {
+        .timetable-print-report {
+            color-adjust: exact;
+        }
+    }
+}
+
+/* Edge print fixes */
+@supports (-ms-ime-align: auto) {
+    @media print {
+        .timetable-print-report * {
+            -webkit-print-color-adjust: exact;
+        }
+    }
+}
