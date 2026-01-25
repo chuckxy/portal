@@ -348,6 +348,9 @@ export async function GET(request: NextRequest) {
         if (params.school) {
             expenditureQuery.school = new mongoose.Types.ObjectId(params.school);
         }
+        if (params.schoolSite) {
+            expenditureQuery.site = new mongoose.Types.ObjectId(params.schoolSite);
+        }
         if (params.dateFrom && params.dateTo) {
             expenditureQuery.expenditureDate = {
                 $gte: params.dateFrom,
@@ -385,6 +388,9 @@ export async function GET(request: NextRequest) {
         const dailyCollectionsQuery: any = {};
         if (params.school) {
             dailyCollectionsQuery.school = new mongoose.Types.ObjectId(params.school);
+        }
+        if (params.schoolSite) {
+            dailyCollectionsQuery.site = new mongoose.Types.ObjectId(params.schoolSite);
         }
         if (params.dateFrom && params.dateTo) {
             dailyCollectionsQuery.collectionDate = {

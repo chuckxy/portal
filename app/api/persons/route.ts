@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         const category = searchParams.get('category');
         const isActive = searchParams.get('isActive');
         const search = searchParams.get('search');
+        const classFilter = searchParams.get('class');
 
         const filter: any = {};
 
@@ -60,7 +61,8 @@ export async function GET(request: NextRequest) {
             ];
         }
 
-        const persons = await Person.find(filter)
+        // First fetch persons with basic filters
+        let persons = await Person.find(filter)
             .populate('school', 'name')
             .populate('schoolSite', 'name')
             .populate('studentInfo.faculty', 'name')
@@ -74,6 +76,15 @@ export async function GET(request: NextRequest) {
             .sort({ createdAt: -1 })
             .lean()
             .exec();
+
+        // Apply class filter (post-query filtering since class is populated)
+        if (classFilter) {
+            persons = persons.filter((p: any) => {
+                const currentClass = p.studentInfo?.currentClass;
+                if (!currentClass) return false;
+                return currentClass.className?.toLowerCase().includes(classFilter.toLowerCase());
+            });
+        }
 
         return NextResponse.json({
             success: true,

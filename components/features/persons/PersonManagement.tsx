@@ -20,6 +20,8 @@ import { Menu } from 'primereact/menu';
 import { useAuth } from '@/context/AuthContext';
 import AddPersonForm from './AddPersonForm';
 import { FilterMatchMode } from 'primereact/api';
+import { useReactToPrint } from 'react-to-print';
+import { PersonsListPrintReport } from '@/components/print/PersonsListPrintReport';
 
 interface Person {
     _id: string;
@@ -54,6 +56,7 @@ const PersonManagement: React.FC = () => {
     const toastRef = useRef<Toast>(null);
     const menuRef = useRef<Menu>(null);
     const fileUploadRef = useRef<FileUpload>(null);
+    const printComponentRef = useRef<HTMLDivElement>(null);
 
     const [persons, setPersons] = useState<Person[]>([]);
     const [loading, setLoading] = useState(false);
@@ -68,6 +71,7 @@ const PersonManagement: React.FC = () => {
     });
     const [categoryFilter, setCategoryFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [classFilter, setClassFilter] = useState('');
 
     // Bulk upload configuration state
     const [uploadStep, setUploadStep] = useState<'config' | 'upload'>('config');
@@ -82,6 +86,8 @@ const PersonManagement: React.FC = () => {
     const [departments, setDepartments] = useState<any[]>([]);
     const [filteredDepartments, setFilteredDepartments] = useState<any[]>([]);
     const [filteredClasses, setFilteredClasses] = useState<any[]>([]);
+    const [schoolData, setSchoolData] = useState<any>(null);
+    const [siteData, setSiteData] = useState<any>(null);
 
     const categoryOptions = [
         { label: 'All Categories', value: '' },
@@ -103,13 +109,14 @@ const PersonManagement: React.FC = () => {
 
     useEffect(() => {
         fetchPersons();
+        fetchSchoolAndSiteData();
         // Calculate current academic year
         const now = new Date();
         const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
         const academicYear = currentMonth >= 8 ? `${currentYear}/${currentYear + 1}` : `${currentYear - 1}/${currentYear}`;
         setUploadAcademicYear(academicYear);
-    }, [user, categoryFilter, statusFilter]);
+    }, [user, categoryFilter, statusFilter, classFilter]);
 
     const fetchPersons = async () => {
         setLoading(true);
@@ -119,6 +126,7 @@ const PersonManagement: React.FC = () => {
             if (user?.schoolSite) params.append('site', user.schoolSite);
             if (categoryFilter) params.append('category', categoryFilter);
             if (statusFilter) params.append('isActive', statusFilter);
+            if (classFilter) params.append('class', classFilter);
 
             const response = await fetch(`/api/persons?${params.toString()}`);
             if (response.ok) {
@@ -131,6 +139,27 @@ const PersonManagement: React.FC = () => {
             showToast('error', 'Error', 'An error occurred while fetching persons');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchSchoolAndSiteData = async () => {
+        try {
+            if (user?.school) {
+                const schoolResponse = await fetch(`/api/schools/${user.school}`);
+                if (schoolResponse.ok) {
+                    const schoolJson = await schoolResponse.json();
+                    setSchoolData(schoolJson.school || null);
+                }
+            }
+            if (user?.schoolSite) {
+                const siteResponse = await fetch(`/api/sites/${user.schoolSite}`);
+                if (siteResponse.ok) {
+                    const siteJson = await siteResponse.json();
+                    setSiteData(siteJson.site || null);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching school/site data:', error);
         }
     };
 
@@ -453,7 +482,7 @@ const PersonManagement: React.FC = () => {
                     schoolSite: user?.schoolSite,
                     personCategory: uploadPersonCategory
                 };
-
+                console.log(uploadData);
                 // Add student-specific fields if category is student
                 if (uploadPersonCategory === 'student') {
                     uploadData.defaultClass = uploadClass?._id;
@@ -510,6 +539,12 @@ const PersonManagement: React.FC = () => {
         a.click();
         window.URL.revokeObjectURL(url);
     };
+
+    // Handle Print to PDF
+    const handlePrint = useReactToPrint({
+        contentRef: printComponentRef,
+        documentTitle: `Persons_List_${new Date().toISOString().split('T')[0]}`
+    });
 
     // Column Templates
     const nameBodyTemplate = (rowData: Person) => {
@@ -630,6 +665,7 @@ const PersonManagement: React.FC = () => {
     const rightToolbarTemplate = () => {
         return (
             <div className="flex gap-2">
+                <Button label="Print to PDF" icon="pi pi-file-pdf" severity="danger" onClick={handlePrint} />
                 <Button label="Export" icon="pi pi-file-export" severity="info" outlined onClick={exportCSV} />
                 <Button icon="pi pi-refresh" rounded outlined onClick={fetchPersons} tooltip="Refresh" tooltipOptions={{ position: 'top' }} />
             </div>
@@ -638,13 +674,36 @@ const PersonManagement: React.FC = () => {
 
     const header = (
         <div className="flex flex-wrap gap-3 align-items-center justify-content-between">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
                 <span className="p-input-icon-left">
                     <i className="pi pi-search" />
-                    <InputText value={globalFilter.global.value} onChange={(e) => setGlobalFilter({ ...globalFilter, global: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS } })} placeholder="Search persons..." className="w-full" />
+                    <InputText 
+                        value={globalFilter.global.value} 
+                        onChange={(e) => setGlobalFilter({ ...globalFilter, global: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS } })} 
+                        placeholder="Search by name, class..." 
+                        className="w-full" 
+                    />
                 </span>
-                <Dropdown value={categoryFilter} options={categoryOptions} onChange={(e) => setCategoryFilter(e.value)} placeholder="Filter by Category" className="w-full md:w-14rem" />
-                <Dropdown value={statusFilter} options={statusOptions} onChange={(e) => setStatusFilter(e.value)} placeholder="Filter by Status" className="w-full md:w-12rem" />
+                <Dropdown 
+                    value={categoryFilter} 
+                    options={categoryOptions} 
+                    onChange={(e) => setCategoryFilter(e.value)} 
+                    placeholder="Filter by Category" 
+                    className="w-full md:w-14rem" 
+                />
+                <InputText 
+                    value={classFilter} 
+                    onChange={(e) => setClassFilter(e.target.value)} 
+                    placeholder="Filter by Class" 
+                    className="w-full md:w-10rem" 
+                />
+                <Dropdown 
+                    value={statusFilter} 
+                    options={statusOptions} 
+                    onChange={(e) => setStatusFilter(e.value)} 
+                    placeholder="Filter by Status" 
+                    className="w-full md:w-12rem" 
+                />
             </div>
             <div className="flex gap-2 align-items-center">
                 <Chip label={`Total: ${persons.length}`} icon="pi pi-users" />
@@ -664,7 +723,7 @@ const PersonManagement: React.FC = () => {
                 loading={loading}
                 header={header}
                 filters={globalFilter}
-                globalFilterFields={['firstName', 'lastName']}
+                globalFilterFields={['firstName', 'lastName', 'middleName', 'username', 'studentInfo.currentClass.className']}
                 paginator
                 rows={10}
                 rowsPerPageOptions={[5, 10, 25, 50]}
@@ -850,6 +909,25 @@ const PersonManagement: React.FC = () => {
                     </div>
                 </div>
             </Dialog>
+
+            {/* Hidden Print Component */}
+            <div style={{ display: 'none' }}>
+                <PersonsListPrintReport
+                    ref={printComponentRef}
+                    persons={persons}
+                    schoolName={schoolData?.name || 'School Name'}
+                    schoolAddress={siteData?.address || schoolData?.address || ''}
+                    schoolContact={schoolData?.contact || ''}
+                    schoolLogo={schoolData?.logo || ''}
+                    siteName={siteData?.siteName || siteData?.name || ''}
+                    generatedBy={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.username || 'User'}
+                    filters={{
+                        category: categoryFilter,
+                        status: statusFilter,
+                        classFilter: classFilter
+                    }}
+                />
+            </div>
         </div>
     );
 };

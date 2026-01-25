@@ -152,6 +152,7 @@ const termOptions = [
 
 export const BillingDashboard: React.FC = () => {
     const { user } = useAuth();
+    console.log(user)
     const router = useRouter();
     const toast = useRef<Toast>(null);
 
