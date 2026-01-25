@@ -58,6 +58,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             return NextResponse.json({ success: false, message: 'Student not found' }, { status: 404 });
         }
 
+        // Add fullName virtual field to lean result
+        student.fullName = [student.firstName, student.middleName, student.lastName].filter(Boolean).join(' ');
+
         // Fetch all exam scores for the student
         const examScores: any[] = await ExamScore.find({ student: studentId })
             .populate('class', 'className level')

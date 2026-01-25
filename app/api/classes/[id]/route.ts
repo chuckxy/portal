@@ -57,21 +57,22 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             return NextResponse.json({ success: false, message: 'Class not found' }, { status: 404 });
         }
 
-        // Check if another class with same details exists
+        // Extract IDs from potentially populated objects
+        const departmentId = typeof department === 'object' && department?._id ? department._id : department;
+        const siteId = typeof site === 'object' && site?._id ? site._id : site;
+
+        // Check if another class with same details exists (matching the unique index: department, site, sequence, division)
         const duplicateClass = await SiteClass.findOne({
-            site,
+            department: departmentId,
+            site: siteId,
             sequence,
             division: division.toUpperCase(),
             _id: { $ne: id }
         });
 
         if (duplicateClass) {
-            return NextResponse.json({ success: false, message: 'A class with this site, level, and division already exists' }, { status: 409 });
+            return NextResponse.json({ success: false, message: 'A class with this department, site, level, and division already exists' }, { status: 409 });
         }
-
-        // Extract IDs from potentially populated objects
-        const departmentId = typeof department === 'object' && department?._id ? department._id : department;
-        const siteId = typeof site === 'object' && site?._id ? site._id : site;
 
         // Update class
         const updatedClass = await SiteClass.findByIdAndUpdate(

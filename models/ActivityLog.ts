@@ -8,7 +8,7 @@ import mongoose, { Schema, Document, Model, Types } from 'mongoose';
  */
 
 // -------------------- TYPES --------------------
-export type ActionCategory = 'authentication' | 'crud' | 'permission' | 'sensitive' | 'system' | 'audit';
+export type ActionCategory = 'authentication' | 'crud' | 'permission' | 'sensitive' | 'system' | 'audit' | 'financial';
 
 export type ActionType =
     // Authentication
@@ -26,6 +26,7 @@ export type ActionType =
     | 'bulk_create'
     | 'bulk_update'
     | 'bulk_delete'
+    | 'bulk_operation'
     // Permission & Role
     | 'role_change'
     | 'permission_grant'
@@ -61,6 +62,7 @@ export type EntityType =
     | 'exam_score'
     | 'fees_configuration'
     | 'fees_payment'
+    | 'billing'
     | 'scholarship'
     | 'scholarship_body'
     | 'library_item'

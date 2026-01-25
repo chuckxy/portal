@@ -117,36 +117,26 @@ export const FinancialControllerDashboard: React.FC = () => {
     ];
 
     useEffect(() => {
-        fetchSchools();
+        fetchSites();
         fetchFinancialData();
         initializeChart();
     }, [user]);
 
     useEffect(() => {
-        if (filters.school) {
-            fetchSites(filters.school);
-        }
-    }, [filters.school]);
-
-    useEffect(() => {
         fetchFinancialData();
     }, [filters, periodView]);
 
-    const fetchSchools = async () => {
+    const fetchSites = async () => {
         try {
-            const response = await fetch('/api/school');
+            if (!user) return;
+            const response = await fetch(`/api/sites?school=${user?.school}`);
             const data = await response.json();
-            setSchools(Array.isArray(data) ? data : [data]);
-        } catch (error) {
-            console.error('Error fetching schools:', error);
-        }
-    };
-
-    const fetchSites = async (schoolId: string) => {
-        try {
-            const response = await fetch(`/api/sites?school=${schoolId}`);
-            const data = await response.json();
-            setSites(data.sites || []);
+            if (Array.isArray(data.sites)) {
+                setSites(data.sites);
+                if (data.sites.length > 0 && !filters.site) {
+                    setFilters((prev) => ({ ...prev, site: data.sites[0]._id, school: user.school }));
+                }
+            }
         } catch (error) {
             console.error('Error fetching sites:', error);
         }
@@ -345,23 +335,6 @@ export const FinancialControllerDashboard: React.FC = () => {
             {/* Filters */}
             <Card className="mb-3">
                 <div className="grid align-items-end">
-                    <div className="col-12 md:col-3">
-                        <label className="block text-sm font-medium mb-2">School</label>
-                        <Dropdown
-                            value={filters.school}
-                            options={schools.map((s) => ({ label: s.name, value: s._id }))}
-                            onChange={(e) =>
-                                setFilters({
-                                    ...filters,
-                                    school: e.value,
-                                    site: ''
-                                })
-                            }
-                            placeholder="Select School"
-                            className="w-full"
-                            showClear
-                        />
-                    </div>
                     <div className="col-12 md:col-3">
                         <label className="block text-sm font-medium mb-2">Site</label>
                         <Dropdown

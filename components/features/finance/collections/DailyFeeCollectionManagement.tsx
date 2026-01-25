@@ -132,7 +132,7 @@ export const DailyFeeCollectionManagement: React.FC = () => {
     useEffect(() => {
         fetchSchools();
         fetchCollections();
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         if (formData.school) {
@@ -210,11 +210,13 @@ export const DailyFeeCollectionManagement: React.FC = () => {
     };
 
     const fetchCollections = async () => {
+        if (!user) return;
         try {
             setLoading(true);
             const queryParams = new URLSearchParams();
 
             if (filters.site) queryParams.append('site', filters.site);
+            queryParams.append('site', filters.site ? filters.site : user?.schoolSite);
             if (filters.academicYear) queryParams.append('academicYear', filters.academicYear);
             if (filters.academicTerm) queryParams.append('academicTerm', filters.academicTerm.toString());
             if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom.toISOString());

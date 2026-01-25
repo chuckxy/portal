@@ -61,6 +61,7 @@ const PersonManagement: React.FC = () => {
     const [bulkUploadVisible, setBulkUploadVisible] = useState(false);
     const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+    const [selectedPersons, setSelectedPersons] = useState<Person[]>([]);
     const [globalFilter, setGlobalFilter] = useState({
         global: { value: null, matchMode: FilterMatchMode.CONTAINS },
         name: { value: null, matchMode: FilterMatchMode.STARTS_WITH }
@@ -154,6 +155,21 @@ const PersonManagement: React.FC = () => {
             icon: 'pi pi-exclamation-triangle',
             acceptClassName: 'p-button-danger',
             accept: () => deletePerson(person._id)
+        });
+    };
+
+    const confirmDeleteSelected = () => {
+        if (selectedPersons.length === 0) {
+            showToast('warn', 'Warning', 'Please select persons to delete');
+            return;
+        }
+        
+        confirmDialog({
+            message: `Are you sure you want to delete ${selectedPersons.length} selected person(s)?`,
+            header: 'Delete Confirmation',
+            icon: 'pi pi-exclamation-triangle',
+            acceptClassName: 'p-button-danger',
+            accept: () => deleteSelectedPersons()
         });
     };
 
@@ -268,6 +284,32 @@ const PersonManagement: React.FC = () => {
             }
         } catch (error) {
             showToast('error', 'Error', 'An error occurred while deleting person');
+        }
+    };
+
+    const deleteSelectedPersons = async () => {
+        try {
+            const personIds = selectedPersons.map(p => p._id);
+            
+            const response = await fetch('/api/persons/bulk-delete', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ personIds })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                showToast('success', 'Success', data.message || `${data.deletedCount} person(s) deleted successfully`);
+                setSelectedPersons([]);
+                fetchPersons();
+            } else {
+                const error = await response.json();
+                showToast('error', 'Error', error.message || 'Failed to delete persons');
+            }
+        } catch (error) {
+            showToast('error', 'Error', 'An error occurred while deleting persons');
         }
     };
 
@@ -573,6 +615,14 @@ const PersonManagement: React.FC = () => {
                 <Button label="Add Person" icon="pi pi-plus" severity="success" onClick={openNew} />
                 <Button label="Bulk Upload" icon="pi pi-upload" severity="info" outlined onClick={openBulkUpload} />
                 <Button label="Download Template" icon="pi pi-download" severity="help" outlined onClick={downloadTemplate} />
+                {selectedPersons.length > 0 && (
+                    <Button 
+                        label={`Delete Selected (${selectedPersons.length})`} 
+                        icon="pi pi-trash" 
+                        severity="danger" 
+                        onClick={confirmDeleteSelected} 
+                    />
+                )}
             </div>
         );
     };
@@ -602,7 +652,6 @@ const PersonManagement: React.FC = () => {
             </div>
         </div>
     );
-
     return (
         <div>
             <Toast ref={toastRef} />
@@ -624,7 +673,11 @@ const PersonManagement: React.FC = () => {
                 stripedRows
                 showGridlines
                 responsiveLayout="scroll"
+                selection={selectedPersons}
+                onSelectionChange={(e) => setSelectedPersons(e.value)}
+                dataKey="_id"
             >
+                <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} exportable={false} />
                 <Column field="firstName" header="Name" body={nameBodyTemplate} sortable style={{ minWidth: '250px' }} />
                 <Column field="personCategory" header="Category" body={categoryBodyTemplate} sortable style={{ minWidth: '120px' }} />
                 <Column header="Contact" body={contactBodyTemplate} style={{ minWidth: '200px' }} />

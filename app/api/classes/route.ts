@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
             .populate('site', 'siteName')
             .populate('formMaster.teacher', 'firstName lastName')
             .populate('prefect', 'firstName lastName')
+            .populate('subjects', 'name code')
             .sort({ sequence: 1, division: 1 })
             .lean()
             .exec();

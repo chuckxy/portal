@@ -11,11 +11,11 @@ let Subject: any;
 let Department: any;
 let Faculty: any;
 let FeesPayment: any;
-let FeesConfiguration: any;
 let Expenditure: any;
 let Scholarship: any;
 let ExamScore: any;
 let DailyFeeCollection: any;
+let StudentBilling: any;
 
 try {
     Person = mongoose.models.Person || require('@/models/Person').default;
@@ -26,11 +26,11 @@ try {
     Department = mongoose.models.Department || require('@/models/Department').default;
     Faculty = mongoose.models.Faculty || require('@/models/Faculty').default;
     FeesPayment = mongoose.models.FeesPayment || require('@/models/FeesPayment').default;
-    FeesConfiguration = mongoose.models.FeesConfiguration || require('@/models/FeesConfiguration').default;
     Expenditure = mongoose.models.Expenditure || require('@/models/Expenditure').default;
     Scholarship = mongoose.models.Scholarship || require('@/models/Scholarship').default;
     ExamScore = mongoose.models.ExamScore || require('@/models/ExamScore').default;
     DailyFeeCollection = mongoose.models.DailyFeeCollection || require('@/models/DailyFeeCollection').default;
+    StudentBilling = mongoose.models.StudentBilling || require('@/models/StudentBilling').default;
 } catch (error) {
     console.error('Error loading models:', error);
 }
@@ -218,63 +218,54 @@ export async function GET(request: NextRequest) {
             school: new mongoose.Types.ObjectId(schoolId as string)
         });
 
-        // Calculate outstanding receivables and critical debtors
-        const students: any[] = await Person.find({
-            personCategory: 'student',
-            isActive: true,
-            school: schoolId,
-            'studentInfo.currentClass': { $exists: true, $ne: null }
-        })
-            .populate('studentInfo.currentClass')
-            .lean();
-
-        let outstandingReceivables = 0;
-        let totalBalanceBroughtForward = 0; // Aggregate B/F across all students
-        let criticalDebtors = 0;
-        let expectedFees = 0;
-        let collectedFees = collectedThisTerm;
-
-        for (const student of students) {
-            const currentClass = student.studentInfo?.currentClass;
-            if (!currentClass) continue;
-
-            // Find fee configuration (check for the academic year, not term-specific)
-            const feeConfig: any = await FeesConfiguration.findOne({
-                class: currentClass._id || currentClass,
-                academicYear: currentAcademicYear,
-                isActive: true
-            }).lean();
-
-            if (feeConfig) {
-                // Get Balance Brought Forward (opening balance from before computerization)
-                const balanceBroughtForward = student.studentInfo?.balanceBroughtForward || 0;
-                totalBalanceBroughtForward += balanceBroughtForward;
-
-                expectedFees += feeConfig.totalAmount || 0;
-
-                // Get only confirmed payments for this student
-                const payments: any[] = await FeesPayment.find({
-                    student: student._id,
+        // Calculate outstanding receivables from StudentBilling collection (single source of truth)
+        const billingAggregation = await StudentBilling.aggregate([
+            {
+                $match: {
+                    school: new mongoose.Types.ObjectId(schoolId as string),
                     academicYear: currentAcademicYear,
-                    status: 'confirmed'
-                }).lean();
-
-                const totalPaid = payments.reduce((sum, payment) => sum + (payment.amountPaid || 0), 0);
-
-                // Calculate outstanding including Balance Brought Forward
-                // Formula: totalDebt = balanceBroughtForward + generatedCharges - payments
-                const currentPeriodOutstanding = Math.max(0, feeConfig.totalAmount - totalPaid);
-                const outstanding = currentPeriodOutstanding + balanceBroughtForward;
-                outstandingReceivables += outstanding;
-
-                // Check if critical debtor (<25% paid) - based on total required including B/F
-                const totalRequired = feeConfig.totalAmount + balanceBroughtForward;
-                const percentagePaid = totalRequired > 0 ? (totalPaid / totalRequired) * 100 : 0;
-                if (percentagePaid < 25 && outstanding > 0) {
-                    criticalDebtors++;
+                    isCurrent: true
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    outstandingReceivables: {
+                        $sum: {
+                            $cond: [{ $gt: ['$currentBalance', 0] }, '$currentBalance', 0]
+                        }
+                    },
+                    totalBalanceBroughtForward: { $sum: '$balanceBroughtForward' },
+                    expectedFees: { $sum: '$totalBilled' },
+                    collectedFees: { $sum: '$totalPaid' },
+                    criticalDebtors: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [{ $gt: ['$currentBalance', 0] }, { $gt: ['$totalBilled', 0] }, { $lt: [{ $divide: ['$totalPaid', '$totalBilled'] }, 0.25] }]
+                                },
+                                1,
+                                0
+                            ]
+                        }
+                    }
                 }
             }
-        }
+        ]);
+
+        const billingData = billingAggregation[0] || {
+            outstandingReceivables: 0,
+            totalBalanceBroughtForward: 0,
+            expectedFees: 0,
+            collectedFees: 0,
+            criticalDebtors: 0
+        };
+
+        const outstandingReceivables = billingData.outstandingReceivables;
+        const totalBalanceBroughtForward = billingData.totalBalanceBroughtForward;
+        const expectedFees = billingData.expectedFees;
+        const collectedFees = billingData.collectedFees || collectedThisTerm;
+        const criticalDebtors = billingData.criticalDebtors;
 
         // Collection rate
         const collectionRate = expectedFees > 0 ? (collectedFees / expectedFees) * 100 : 0;

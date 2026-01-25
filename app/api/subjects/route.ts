@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Subject from '@/models/Subject';
 import Department from '@/models/Department';
-import SchoolSite from '@/models/SchoolSite';
 
 // GET all subjects
 export async function GET(request: NextRequest) {

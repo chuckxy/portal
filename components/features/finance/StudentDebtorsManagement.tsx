@@ -22,6 +22,7 @@ import { InputTextarea } from 'primereact/inputtextarea';
 import { useReactToPrint } from 'react-to-print';
 import { getAcademicYears } from '@/lib/utils/utilFunctions';
 import { TuitionDefaultersPrintReport } from '@/components/print/TuitionDefaultersPrintReport';
+import { useAuth } from '@/context/AuthContext';
 
 interface DebtorStudent {
     _id: string;
@@ -122,7 +123,7 @@ export const StudentDebtorsManagement: React.FC = () => {
     const [reminderDialogVisible, setReminderDialogVisible] = useState(false);
     const [selectedDebtor, setSelectedDebtor] = useState<DebtorStudent | null>(null);
     const [activeTab, setActiveTab] = useState(0);
-
+    const { user } = useAuth();
     const [filters, setFilters] = useState({
         school: '',
         site: '',
@@ -184,15 +185,9 @@ export const StudentDebtorsManagement: React.FC = () => {
     });
 
     useEffect(() => {
-        fetchSchools();
+        fetchSites();
         fetchDebtors();
-    }, []);
-
-    useEffect(() => {
-        if (filters.school) {
-            fetchSites(filters.school);
-        }
-    }, [filters.school]);
+    }, [user]);
 
     useEffect(() => {
         if (filters.site) {
@@ -209,16 +204,30 @@ export const StudentDebtorsManagement: React.FC = () => {
             console.error('Error fetching schools:', error);
         }
     };
-
-    const fetchSites = async (schoolId: string) => {
+    const fetchSites = async () => {
         try {
-            const response = await fetch(`/api/sites?school=${schoolId}`);
+            if (!user) return;
+            const response = await fetch(`/api/sites?school=${user?.school}`);
             const data = await response.json();
-            setSites(data.sites || []);
+            if (Array.isArray(data.sites)) {
+                setSites(data.sites);
+                if (data.sites.length > 0 && !filters.site) {
+                    setFilters((prev) => ({ ...prev, site: data.sites[0]._id }));
+                }
+            }
         } catch (error) {
             console.error('Error fetching sites:', error);
         }
     };
+    // const fetchSites = async (schoolId: string) => {
+    //     try {
+    //         const response = await fetch(`/api/sites?school=${schoolId}`);
+    //         const data = await response.json();
+    //         setSites(data.sites || []);
+    //     } catch (error) {
+    //         console.error('Error fetching sites:', error);
+    //     }
+    // };
 
     const fetchClasses = async (siteId: string) => {
         try {
@@ -231,11 +240,13 @@ export const StudentDebtorsManagement: React.FC = () => {
     };
 
     const fetchDebtors = async () => {
+        if (!user) return;
         try {
             setLoading(true);
             const queryParams = new URLSearchParams();
 
             if (filters.site) queryParams.append('site', filters.site);
+            else if (user.schoolSite) queryParams.append('site', user.schoolSite);
             if (filters.class) queryParams.append('class', filters.class);
             if (filters.academicYear) queryParams.append('academicYear', filters.academicYear);
             if (filters.academicTerm) queryParams.append('academicTerm', filters.academicTerm.toString());
@@ -701,6 +712,7 @@ export const StudentDebtorsManagement: React.FC = () => {
                     </div>
                     <div className="col-12 md:col-6 flex align-items-end gap-2">
                         <Button label="Apply Filters" icon="pi pi-filter" onClick={fetchDebtors} />
+
                         <Button
                             label="Clear"
                             icon="pi pi-filter-slash"

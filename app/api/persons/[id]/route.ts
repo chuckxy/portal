@@ -14,6 +14,13 @@ let SiteClass: any;
 let Subject: any;
 let Address: any;
 let Bank: any;
+let StudentBilling: any;
+let FeesPayment: any;
+let ExamScore: any;
+let LibraryLending: any;
+let Assignment: any;
+let Scholarship: any;
+let ExamAnswer: any;
 
 try {
     Person = mongoose.models.Person || require('@/models/Person').default;
@@ -25,6 +32,13 @@ try {
     Subject = mongoose.models.Subject || require('@/models/Subject').default;
     Address = mongoose.models.Address || require('@/models/Address').default;
     Bank = mongoose.models.Bank || require('@/models/Bank').default;
+    StudentBilling = mongoose.models.StudentBilling || require('@/models/StudentBilling').default;
+    FeesPayment = mongoose.models.FeesPayment || require('@/models/FeesPayment').default;
+    ExamScore = mongoose.models.ExamScore || require('@/models/ExamScore').default;
+    LibraryLending = mongoose.models.LibraryLending || require('@/models/LibraryLending').default;
+    Assignment = mongoose.models.Assignment || require('@/models/Assignment').default;
+    Scholarship = mongoose.models.Scholarship || require('@/models/Scholarship').default;
+    ExamAnswer = mongoose.models.ExamAnswer || require('@/models/ExamAnswer').default;
 } catch (error) {
     console.error('Error loading models:', error);
 }
@@ -288,17 +302,119 @@ const deleteHandler = async (request: NextRequest, context: { params: Promise<{ 
             return NextResponse.json({ success: false, message: 'Person not found' }, { status: 404 });
         }
 
-        // Check if person is referenced in other collections
-        // For students: check if they have fees, exam records, etc.
-        // For teachers: check if they are assigned to classes, subjects, etc.
-        // This is a soft check - you can make it more comprehensive based on your needs
+        // Check for active library lendings
+        const activeLibraryLendings = await LibraryLending.countDocuments({
+            borrower: id,
+            status: { $in: ['active', 'overdue'] }
+        }).exec();
 
-        await Person.findByIdAndDelete(id).exec();
+        if (activeLibraryLendings > 0) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    message: 'Cannot delete: Person has unreturned library items. Please return all items first.',
+                    activeLibraryLendings
+                },
+                { status: 400 }
+            );
+        }
 
-        return NextResponse.json({
-            success: true,
-            message: 'Person deleted successfully'
-        });
+        // Start transaction for cascading delete
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        const cleanupStats = {
+            studentBillingsDeleted: 0,
+            feesPaymentsDeleted: 0,
+            examScoresDeleted: 0,
+            libraryLendingsUpdated: 0,
+            assignmentsUpdated: 0,
+            scholarshipsDeleted: 0,
+            examAnswersDeleted: 0,
+            guardiansUpdated: 0
+        };
+
+        try {
+            // Cascade delete related data
+            const billingResult = await StudentBilling.deleteMany({ student: id }, { session }).exec();
+            cleanupStats.studentBillingsDeleted = billingResult.deletedCount || 0;
+
+            const paymentsResult = await FeesPayment.deleteMany({ student: id }, { session }).exec();
+            cleanupStats.feesPaymentsDeleted = paymentsResult.deletedCount || 0;
+
+            const examScoresResult = await ExamScore.deleteMany({ student: id }, { session }).exec();
+            cleanupStats.examScoresDeleted = examScoresResult.deletedCount || 0;
+
+            const examAnswersResult = await ExamAnswer.deleteMany({ student: id }, { session }).exec();
+            cleanupStats.examAnswersDeleted = examAnswersResult.deletedCount || 0;
+
+            const scholarshipsResult = await Scholarship.deleteMany({ student: id }, { session }).exec();
+            cleanupStats.scholarshipsDeleted = scholarshipsResult.deletedCount || 0;
+
+            const libraryResult = await LibraryLending.updateMany(
+                { borrower: id },
+                { 
+                    $set: { 
+                        notes: 'Borrower account deleted',
+                        status: 'returned' 
+                    } 
+                },
+                { session }
+            ).exec();
+            cleanupStats.libraryLendingsUpdated = libraryResult.modifiedCount || 0;
+
+            const assignmentsResult = await Assignment.updateMany(
+                { 'submissions.student': id },
+                { 
+                    $pull: { submissions: { student: id } },
+                    $inc: { totalSubmissions: -1 }
+                },
+                { session }
+            ).exec();
+            cleanupStats.assignmentsUpdated = assignmentsResult.modifiedCount || 0;
+
+            const guardianResult = await Person.updateMany(
+                { 'studentInfo.guardian': id },
+                { 
+                    $unset: { 'studentInfo.guardian': 1 },
+                    $set: { 'studentInfo.guardianRelationship': null }
+                },
+                { session }
+            ).exec();
+            cleanupStats.guardiansUpdated = guardianResult.modifiedCount || 0;
+
+            // Delete the person
+            await Person.findByIdAndDelete(id, { session }).exec();
+
+            // Commit transaction
+            await session.commitTransaction();
+
+            // Async database optimization
+            setImmediate(async () => {
+                try {
+                    await Promise.all([
+                        Person.collection.reIndex(),
+                        StudentBilling.collection.reIndex(),
+                        FeesPayment.collection.reIndex()
+                    ]);
+                    console.log('[DB-OPTIMIZATION] Successfully reindexed collections after person delete');
+                } catch (error) {
+                    console.error('[DB-OPTIMIZATION] Error reindexing:', error);
+                }
+            });
+
+            return NextResponse.json({
+                success: true,
+                message: 'Person deleted successfully',
+                cleanupStats
+            });
+
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
     } catch (error: any) {
         console.error('Error deleting person:', error);
         return NextResponse.json({ success: false, message: 'Failed to delete person', error: error.message }, { status: 500 });

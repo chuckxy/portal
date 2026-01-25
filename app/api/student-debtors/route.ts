@@ -87,6 +87,8 @@ export async function GET(request: NextRequest) {
         const academicTerm = searchParams.get('academicTerm');
         const minBalance = searchParams.get('minBalance');
         const search = searchParams.get('search');
+        const page = parseInt(searchParams.get('page') || '0');
+        const limit = parseInt(searchParams.get('limit') || '10');
 
         // Build query for students - only get active students with a current class
         const studentQuery: any = {
@@ -99,177 +101,205 @@ export async function GET(request: NextRequest) {
             studentQuery.$or = [{ firstName: { $regex: search, $options: 'i' } }, { lastName: { $regex: search, $options: 'i' } }, { 'studentInfo.studentId': { $regex: search, $options: 'i' } }];
         }
 
-        // Get all students
-        const students = await Person.find(studentQuery)
-            .populate({
-                path: 'studentInfo.currentClass',
-                populate: { path: 'site' }
-            })
-            .populate('studentInfo.guardian')
-            .lean();
+        // Fetch students in batches - only process what we need for this page
+        // To get page N with limit L, we need to process enough to have at least (N+1)*L debtors
+        // But we don't know which students are debtors until we calculate, so we fetch in chunks
+        const STUDENT_BATCH_SIZE = 10;
+        const targetDebtorCount = (page + 1) * limit + 5; // Fetch just enough for this page plus a small buffer
 
+        let studentSkip = 0;
         const debtors = [];
+        let processedCount = 0;
 
-        for (const student of students) {
-            if (!student.studentInfo?.currentClass) continue;
+        while (debtors.length < targetDebtorCount) {
+            // Fetch a batch of students
+            const students = await Person.find(studentQuery)
+                .populate({
+                    path: 'studentInfo.currentClass',
+                    populate: { path: 'site' }
+                })
+                .populate('studentInfo.guardian')
+                .skip(studentSkip)
+                .limit(STUDENT_BATCH_SIZE)
+                .lean();
 
-            const currentClass = student.studentInfo.currentClass as any;
-            const studentSite = currentClass.site?._id || currentClass.site;
+            if (students.length === 0) break; // No more students
 
-            // Apply filters
-            if (site && studentSite?.toString() !== site) continue;
-            if (classId && currentClass._id?.toString() !== classId) continue;
+            processedCount += students.length;
+            studentSkip += STUDENT_BATCH_SIZE;
 
-            // Build fee configuration query - start with required fields
-            const feeConfigQuery: any = {
-                site: studentSite,
-                class: currentClass._id,
-                isActive: true
-            };
+            for (const student of students) {
+                if (!student.studentInfo?.currentClass) continue;
 
-            // Determine academic year to use
-            const effectiveAcademicYear = academicYear || student.studentInfo.defaultAcademicYear || currentAcademicYear;
-            feeConfigQuery.academicYear = effectiveAcademicYear;
+                const currentClass = student.studentInfo.currentClass as any;
+                const studentSite = currentClass.site?._id || currentClass.site;
 
-            // Only add term to query if explicitly provided or student has default
-            if (academicTerm) {
-                feeConfigQuery.academicTerm = parseInt(academicTerm);
-            } else if (student.studentInfo.defaultAcademicTerm) {
-                feeConfigQuery.academicTerm = student.studentInfo.defaultAcademicTerm;
-            }
-            // If neither is provided, find any fee config for the year (don't filter by term)
+                // Apply filters
+                if (site && studentSite?.toString() !== site) continue;
+                if (classId && currentClass._id?.toString() !== classId) continue;
 
-            // Get fee configuration for this student's class
-            const feeConfig = await FeesConfiguration.findOne(feeConfigQuery).populate('site').lean();
+                // Build fee configuration query - start with required fields
+                const feeConfigQuery: any = {
+                    site: studentSite,
+                    class: currentClass._id,
+                    isActive: true
+                };
 
-            if (!feeConfig) {
-                // Try without term filter if we had one
-                if (feeConfigQuery.academicTerm) {
-                    delete feeConfigQuery.academicTerm;
-                    const feeConfigAnyTerm = await FeesConfiguration.findOne(feeConfigQuery).populate('site').lean();
-                    if (!feeConfigAnyTerm) {
+                // Determine academic year to use
+                const effectiveAcademicYear = academicYear || student.studentInfo.defaultAcademicYear || currentAcademicYear;
+                feeConfigQuery.academicYear = effectiveAcademicYear;
+
+                // Only add term to query if explicitly provided or student has default
+                if (academicTerm) {
+                    feeConfigQuery.academicTerm = parseInt(academicTerm);
+                } else if (student.studentInfo.defaultAcademicTerm) {
+                    feeConfigQuery.academicTerm = student.studentInfo.defaultAcademicTerm;
+                }
+                // If neither is provided, find any fee config for the year (don't filter by term)
+
+                // Get fee configuration for this student's class
+                const feeConfig = await FeesConfiguration.findOne(feeConfigQuery).populate('site').lean();
+
+                if (!feeConfig) {
+                    // Try without term filter if we had one
+                    if (feeConfigQuery.academicTerm) {
+                        delete feeConfigQuery.academicTerm;
+                        const feeConfigAnyTerm = await FeesConfiguration.findOne(feeConfigQuery).populate('site').lean();
+                        if (!feeConfigAnyTerm) {
+                            console.log(`No fee config found for student ${student._id}, class ${currentClass._id}, year ${effectiveAcademicYear}`);
+                            continue;
+                        }
+                        // Use the found config
+                        Object.assign(feeConfig as any, feeConfigAnyTerm);
+                    } else {
                         console.log(`No fee config found for student ${student._id}, class ${currentClass._id}, year ${effectiveAcademicYear}`);
                         continue;
                     }
-                    // Use the found config
-                    Object.assign(feeConfig as any, feeConfigAnyTerm);
-                } else {
-                    console.log(`No fee config found for student ${student._id}, class ${currentClass._id}, year ${effectiveAcademicYear}`);
+                }
+
+                // Get all payments for this student - match the fee config context
+                const paymentQuery: any = {
+                    student: student._id,
+                    class: currentClass._id,
+                    site: studentSite,
+                    status: { $ne: 'failed' },
+                    academicYear: effectiveAcademicYear
+                };
+
+                // Only filter by term if fee config has a term
+                if (feeConfig.academicTerm) {
+                    paymentQuery.academicTerm = feeConfig.academicTerm;
+                }
+
+                const payments = await FeesPayment.find(paymentQuery).sort({ datePaid: -1 }).lean();
+
+                const totalFeesPaid = payments.reduce((sum, payment) => sum + payment.amountPaid, 0);
+
+                // Get Balance Brought Forward (opening balance from before computerization)
+                const balanceBroughtForward = student.studentInfo?.balanceBroughtForward || 0;
+
+                // Calculate historical arrears from class history
+                const classHistory = student.studentInfo?.classHistory || [];
+                const historicalArrears = await calculateHistoricalArrears(student._id.toString(), classHistory, effectiveAcademicYear, feeConfig.academicTerm);
+
+                // Calculate outstanding: current period outstanding + historical arrears + balance brought forward
+                // Historical arrears can be negative (overpayment) which reduces total
+                const currentPeriodOutstanding = feeConfig.totalAmount - totalFeesPaid;
+                const outstandingBalance = balanceBroughtForward + historicalArrears + currentPeriodOutstanding;
+
+                // Only include students with outstanding balance > 0 (including balance B/F)
+                if (outstandingBalance <= 0) {
+                    console.log(`Student ${student._id} has no outstanding balance (${outstandingBalance})`);
                     continue;
                 }
-            }
 
-            // Get all payments for this student - match the fee config context
-            const paymentQuery: any = {
-                student: student._id,
-                class: currentClass._id,
-                site: studentSite,
-                status: { $ne: 'failed' },
-                academicYear: effectiveAcademicYear
-            };
+                // Apply minimum balance filter
+                if (minBalance && outstandingBalance < parseFloat(minBalance)) continue;
 
-            // Only filter by term if fee config has a term
-            if (feeConfig.academicTerm) {
-                paymentQuery.academicTerm = feeConfig.academicTerm;
-            }
+                // Calculate percentage paid based on total required (current fees + historical arrears + balance B/F)
+                // Note: if historicalArrears is negative (overpaid), it reduces the total required
+                const totalRequired = feeConfig.totalAmount + historicalArrears + balanceBroughtForward;
+                const percentagePaid = totalRequired > 0 ? (totalFeesPaid / totalRequired) * 100 : 0;
 
-            const payments = await FeesPayment.find(paymentQuery).sort({ datePaid: -1 }).lean();
-
-            const totalFeesPaid = payments.reduce((sum, payment) => sum + payment.amountPaid, 0);
-
-            // Get Balance Brought Forward (opening balance from before computerization)
-            const balanceBroughtForward = student.studentInfo?.balanceBroughtForward || 0;
-
-            // Calculate historical arrears from class history
-            const classHistory = student.studentInfo?.classHistory || [];
-            const historicalArrears = await calculateHistoricalArrears(student._id.toString(), classHistory, effectiveAcademicYear, feeConfig.academicTerm);
-
-            // Calculate outstanding: current period outstanding + historical arrears + balance brought forward
-            // Historical arrears can be negative (overpayment) which reduces total
-            const currentPeriodOutstanding = feeConfig.totalAmount - totalFeesPaid;
-            const outstandingBalance = balanceBroughtForward + historicalArrears + currentPeriodOutstanding;
-
-            // Only include students with outstanding balance > 0 (including balance B/F)
-            if (outstandingBalance <= 0) {
-                console.log(`Student ${student._id} has no outstanding balance (${outstandingBalance})`);
-                continue;
-            }
-
-            // Apply minimum balance filter
-            if (minBalance && outstandingBalance < parseFloat(minBalance)) continue;
-
-            // Calculate percentage paid based on total required (current fees + historical arrears + balance B/F)
-            // Note: if historicalArrears is negative (overpaid), it reduces the total required
-            const totalRequired = feeConfig.totalAmount + historicalArrears + balanceBroughtForward;
-            const percentagePaid = totalRequired > 0 ? (totalFeesPaid / totalRequired) * 100 : 0;
-
-            // Calculate days overdue if deadline exists
-            let daysOverdue = 0;
-            if (feeConfig.paymentDeadline) {
-                const deadline = new Date(feeConfig.paymentDeadline);
-                const today = new Date();
-                const diffTime = today.getTime() - deadline.getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                if (diffDays > 0) {
-                    daysOverdue = diffDays;
+                // Calculate days overdue if deadline exists
+                let daysOverdue = 0;
+                if (feeConfig.paymentDeadline) {
+                    const deadline = new Date(feeConfig.paymentDeadline);
+                    const today = new Date();
+                    const diffTime = today.getTime() - deadline.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    if (diffDays > 0) {
+                        daysOverdue = diffDays;
+                    }
                 }
+
+                const lastPayment = payments[0]; // Already sorted by date descending
+
+                debtors.push({
+                    _id: student._id,
+                    studentId: student.studentInfo.studentId || 'N/A',
+                    firstName: student.firstName,
+                    lastName: student.lastName,
+                    otherNames: student.otherNames,
+                    profilePicture: student.profilePicture,
+                    contact: student.contact,
+                    studentInfo: {
+                        guardian: student.studentInfo.guardian,
+                        currentClass: currentClass,
+                        accountBalance: student.studentInfo.accountBalance,
+                        balanceBroughtForward: balanceBroughtForward
+                    },
+                    site: feeConfig.site,
+                    class: currentClass,
+                    academicYear: effectiveAcademicYear,
+                    academicTerm: feeConfig.academicTerm,
+                    totalFeesRequired: feeConfig.totalAmount,
+                    balanceBroughtForward: balanceBroughtForward, // Opening balance from before computerization
+                    historicalArrears: historicalArrears, // Arrears from previous periods based on class history
+                    totalFeesPaid: totalFeesPaid,
+                    outstandingBalance: outstandingBalance,
+                    percentagePaid: parseFloat(percentagePaid.toFixed(2)),
+                    paymentDeadline: feeConfig.paymentDeadline,
+                    daysOverdue: daysOverdue,
+                    lastPaymentDate: lastPayment?.datePaid,
+                    lastPaymentAmount: lastPayment?.amountPaid,
+                    paymentCount: payments.length,
+                    feeConfiguration: {
+                        _id: feeConfig._id,
+                        configName: feeConfig.configName,
+                        feeItems: feeConfig.feeItems
+                    },
+                    payments: payments.map((p) => ({
+                        _id: p._id,
+                        amountPaid: p.amountPaid,
+                        datePaid: p.datePaid,
+                        paymentMethod: p.paymentMethod,
+                        receiptNumber: p.receiptNumber
+                    }))
+                });
             }
 
-            const lastPayment = payments[0]; // Already sorted by date descending
-
-            debtors.push({
-                _id: student._id,
-                studentId: student.studentInfo.studentId || 'N/A',
-                firstName: student.firstName,
-                lastName: student.lastName,
-                otherNames: student.otherNames,
-                profilePicture: student.profilePicture,
-                contact: student.contact,
-                studentInfo: {
-                    guardian: student.studentInfo.guardian,
-                    currentClass: currentClass,
-                    accountBalance: student.studentInfo.accountBalance,
-                    balanceBroughtForward: balanceBroughtForward
-                },
-                site: feeConfig.site,
-                class: currentClass,
-                academicYear: effectiveAcademicYear,
-                academicTerm: feeConfig.academicTerm,
-                totalFeesRequired: feeConfig.totalAmount,
-                balanceBroughtForward: balanceBroughtForward, // Opening balance from before computerization
-                historicalArrears: historicalArrears, // Arrears from previous periods based on class history
-                totalFeesPaid: totalFeesPaid,
-                outstandingBalance: outstandingBalance,
-                percentagePaid: parseFloat(percentagePaid.toFixed(2)),
-                paymentDeadline: feeConfig.paymentDeadline,
-                daysOverdue: daysOverdue,
-                lastPaymentDate: lastPayment?.datePaid,
-                lastPaymentAmount: lastPayment?.amountPaid,
-                paymentCount: payments.length,
-                feeConfiguration: {
-                    _id: feeConfig._id,
-                    configName: feeConfig.configName,
-                    feeItems: feeConfig.feeItems
-                },
-                payments: payments.map((p) => ({
-                    _id: p._id,
-                    amountPaid: p.amountPaid,
-                    datePaid: p.datePaid,
-                    paymentMethod: p.paymentMethod,
-                    receiptNumber: p.receiptNumber
-                }))
-            });
+            // If we have enough debtors for this page, stop processing more students
+            if (debtors.length >= targetDebtorCount) break;
         }
 
         // Sort by outstanding balance (highest first)
         debtors.sort((a, b) => b.outstandingBalance - a.outstandingBalance);
 
-        console.log('Total debtors found:', debtors.length);
+        const skip = page * limit;
+        const paginatedDebtors = debtors.slice(skip, skip + limit);
+        const hasMore = debtors.length > skip + limit;
+
+        console.log(`Processed ${processedCount} students, found ${debtors.length} debtors, returning ${paginatedDebtors.length} for page ${page}`);
 
         return NextResponse.json({
             success: true,
-            debtors,
-            count: debtors.length
+            debtors: paginatedDebtors,
+            count: paginatedDebtors.length,
+            totalRecords: debtors.length, // Only debtors found so far, not absolute total
+            hasMore,
+            page,
+            limit
         });
     } catch (error) {
         console.error('Error fetching student debtors:', error);

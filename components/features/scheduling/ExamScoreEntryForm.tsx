@@ -15,13 +15,9 @@ import { Toast } from 'primereact/toast';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Card } from 'primereact/card';
 import { Tag } from 'primereact/tag';
-import { Divider } from 'primereact/divider';
 import { Timeline } from 'primereact/timeline';
 import { Message } from 'primereact/message';
-import { ProgressBar } from 'primereact/progressbar';
 import { Chip } from 'primereact/chip';
-import { Badge } from 'primereact/badge';
-import { AutoComplete } from 'primereact/autocomplete';
 import { Checkbox } from 'primereact/checkbox';
 import { useAuth } from '@/context/AuthContext';
 import { debounce } from 'lodash';
@@ -172,6 +168,7 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
     const [classes, setClasses] = useState<any[]>([]);
     const [subjects, setSubjects] = useState<any[]>([]);
     const [filteredStudents, setFilteredStudents] = useState<any[]>([]);
+    const [classSize, setClassSize] = useState<number>(0);
 
     // Validation state
     const [errors, setErrors] = useState<ValidationError[]>([]);
@@ -227,7 +224,6 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
         if (formData.class) {
             const classId = formData.class._id || formData.class;
             fetchStudentsByClass(classId);
-            fetchSubjects();
         } else {
             setStudents([]);
         }
@@ -314,38 +310,29 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
         }
     };
 
-    const fetchSubjects = async () => {
-        try {
-            let url = '/api/subjects';
-            // Filter by class if selected
-            if (formData.class) {
-                const classId = formData.site._id || formData.site;
-                url += `?site=${classId}`;
-            }
-            // Otherwise filter by teacher's classes if user is a teacher
-            else if (user?.personCategory === 'teacher' && user?._id) {
-                url += `?teacher=${user._id}`;
-            }
-
-            const response = await fetch(url);
-            const data = await response.json();
-
-            setSubjects(Array.isArray(data.subjects) ? data.subjects : []);
-        } catch (error) {
-            console.error('Error fetching subjects:', error);
-            setSubjects([]);
-        }
-    };
-
     const fetchStudentsByClass = async (classId: string) => {
         try {
             const response = await fetch(`/api/students?class=${classId}`);
             const data = await response.json();
 
-            setStudents(Array.isArray(data) ? data : []);
+            setStudents(Array.isArray(data.students) ? data.students : []);
         } catch (error) {
             console.error('Error fetching students:', error);
             setStudents([]);
+        }
+    };
+
+    const fetchClassSize = async (classId: string) => {
+        try {
+            const response = await fetch(`/api/classes/${classId}/student-count`);
+            const data = await response.json();
+
+            if (data.success) {
+                setClassSize(data.studentCount);
+            }
+        } catch (error) {
+            console.error('Error fetching class size:', error);
+            setClassSize(0);
         }
     };
 
@@ -374,13 +361,12 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
             const studentId = student._id || student;
             const response = await fetch(`/api/exam-scores?student=${studentId}&year=${formData.academicYear}&term=${formData.academicTerm}`);
             const data = await response.json();
-            console.log(data.scores);
+
             // If existing scores found, pre-populate all form data for editing
             if (data && data.scores.length && data.scores[0]) {
                 const existingData = data.scores[0];
 
                 // Fetch available subjects first to ensure proper mapping
-                await fetchSubjects();
 
                 setFormData((prev) => ({
                     ...prev,
@@ -413,30 +399,15 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
 
     const autoPopulateSubjects = async () => {
         try {
-            let url = '/api/subjects';
-
-            // Filter by class if selected
-            if (formData.class) {
-                const classId = formData.class._id || formData.class;
-                url += `?class=${classId}`;
-            }
-            // Otherwise filter by teacher's classes if user is a teacher
-            else if (user?.personCategory === 'teacher' && user?._id) {
-                url += `?teacher=${user._id}`;
-            }
-
-            const response = await fetch(url);
-            const data = await response.json();
-
-            if (Array.isArray(data.subjects) && data.subjects.length > 0) {
-                const emptyScores = data.subjects.map((subject: any) => ({
+            if (Array.isArray(subjects) && subjects.length > 0) {
+                const emptyScores = subjects.map((subject: any) => ({
                     subject: subject,
                     classScore: 0,
                     examScore: 0,
                     totalScore: 0,
                     grade: 'F',
                     position: 0,
-                    classSize: 0
+                    classSize: classSize
                 }));
 
                 setFormData((prev) => ({
@@ -598,11 +569,17 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
             student: null
         }));
         setStudents([]);
+        setSubjects(classObj.subjects || []);
         setContextLocked(false);
+
+        // Fetch the class size when class changes
+        const classId = classObj._id || classObj;
+        if (classId) {
+            fetchClassSize(classId);
+        }
     };
 
     const handleStudentChange = (studentObj: any) => {
-        console.log('Selected student:', studentObj);
         setFormData((prev) => ({
             ...prev,
             student: studentObj
@@ -621,7 +598,8 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
                     classScore: 0,
                     examScore: 0,
                     totalScore: 0,
-                    grade: 'F'
+                    grade: 'F',
+                    classSize: classSize
                 }
             ]
         }));
@@ -646,6 +624,9 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
                 updatedScores[index].grade = getGrade(updatedScores[index].totalScore);
             }
 
+            // Always set the classSize on score changes
+            updatedScores[index].classSize = classSize;
+
             return { ...prev, scores: updatedScores };
         });
     };
@@ -656,7 +637,8 @@ const ExamScoreEntryForm: React.FC<ExamScoreEntryFormProps> = ({ existingScore, 
             scores: prev.scores.map((score) => ({
                 ...score,
                 totalScore: calculateTotalScore(score.classScore, score.examScore),
-                grade: getGrade(calculateTotalScore(score.classScore, score.examScore))
+                grade: getGrade(calculateTotalScore(score.classScore, score.examScore)),
+                classSize: classSize
             })),
             overallAverage: calculateOverallAverage(),
             totalMarks: calculateTotalMarks()

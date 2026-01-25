@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card } from 'primereact/card';
 import { Button } from 'primereact/button';
-import { Dropdown } from 'primereact/dropdown';
-import { InputText } from 'primereact/inputtext';
+import { Dropdown, DropdownChangeEvent } from 'primereact/dropdown';
 import { InputNumber } from 'primereact/inputnumber';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
@@ -12,7 +11,6 @@ import { Toast } from 'primereact/toast';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Tag } from 'primereact/tag';
 import { Message } from 'primereact/message';
-import { ProgressBar } from 'primereact/progressbar';
 import { Toolbar } from 'primereact/toolbar';
 import { SelectButton } from 'primereact/selectbutton';
 import { Divider } from 'primereact/divider';
@@ -83,6 +81,19 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
     const [setupComplete, setSetupComplete] = useState(false);
     const [editableRows, setEditableRows] = useState<Set<string>>(new Set());
     const [savedCount, setSavedCount] = useState(0);
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Detect mobile screen size
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     useEffect(() => {
         if (user?.school) {
@@ -118,14 +129,6 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
             setSubjects([]);
         }
     }, [formData.site]);
-
-    useEffect(() => {
-        if (formData.class) {
-            fetchSubjects(formData.class._id || formData.class);
-        } else {
-            setSubjects([]);
-        }
-    }, [formData.class]);
 
     // Helper function to get auth headers
     const getAuthHeaders = async () => {
@@ -177,16 +180,10 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
         }
     };
 
-    const fetchSubjects = async (classId: string) => {
-        try {
-            const response = await fetch(`/api/subjects?class=${classId}`);
-            const data = await response.json();
-            setSubjects(Array.isArray(data.subjects) ? data.subjects : []);
-        } catch (error) {
-            console.error('Error fetching subjects:', error);
-        }
+    const onClassChange = (e: DropdownChangeEvent) => {
+        setFormData({ ...formData, class: e.value._id, subject: null });
+        setSubjects(e.value.subjects);
     };
-
     const loadStudents = async () => {
         if (!formData.class || !formData.subject) {
             toast.current?.show({
@@ -204,7 +201,8 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
             const classId = formData.class._id || formData.class;
             const response = await fetch(`/api/students?class=${classId}`);
             const studentsData = await response.json();
-            const students = Array.isArray(studentsData) ? studentsData : [];
+
+            const students = Array.isArray(studentsData.students) ? studentsData.students : [];
 
             if (students.length === 0) {
                 toast.current?.show({
@@ -815,16 +813,7 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
                     <label htmlFor="class" className="font-semibold">
                         Class *
                     </label>
-                    <Dropdown
-                        id="class"
-                        value={formData.class}
-                        options={classes}
-                        onChange={(e) => setFormData({ ...formData, class: e.value, subject: null })}
-                        optionLabel="className"
-                        placeholder="Select class"
-                        disabled={!formData.site || setupComplete}
-                        filter
-                    />
+                    <Dropdown id="class" value={formData.class} options={classes} onChange={onClassChange} optionLabel="className" placeholder="Select class" disabled={!formData.site || setupComplete} filter />
                 </div>
 
                 <div className="field col-12 md:col-4">
@@ -869,6 +858,87 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
         </Card>
     );
 
+    // Render mobile score cards
+    const renderMobileScoreCards = () => (
+        <div className="mt-3">
+            {formData.studentScores.map((studentScore, index) => (
+                <Card key={studentScore.student._id} className="mb-3">
+                    <div className="flex justify-content-between align-items-start mb-3">
+                        <div className="flex-1">
+                            <div className="flex align-items-center gap-2 mb-2">
+                                <span className="font-bold text-primary">#{index + 1}</span>
+                                <div>
+                                    <div className="font-semibold text-lg">
+                                        {studentScore.student.firstName} {studentScore.student.lastName}
+                                    </div>
+                                    <small className="text-600">{studentScore.student.studentInfo?.studentId}</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div>{studentScore.hasExistingRecord ? <Tag value="Saved" severity="success" icon="pi pi-check" /> : <Tag value="New" severity="warning" icon="pi pi-plus" />}</div>
+                    </div>
+
+                    <Divider className="my-2" />
+
+                    <div className="mb-3">
+                        <label className="text-600 text-sm block mb-2">Class Score (40%)</label>
+                        <InputNumber
+                            value={studentScore.classScore}
+                            onValueChange={(e) => handleScoreChange(studentScore.student._id, 'classScore', e.value ?? 0)}
+                            min={0}
+                            max={100}
+                            className="w-full"
+                            disabled={saving}
+                            showButtons
+                            buttonLayout="horizontal"
+                            step={1}
+                            decrementButtonClassName="p-button-outlined p-button-sm"
+                            incrementButtonClassName="p-button-outlined p-button-sm"
+                        />
+                    </div>
+
+                    <div className="mb-3">
+                        <label className="text-600 text-sm block mb-2">Exam Score (60%)</label>
+                        <InputNumber
+                            value={studentScore.examScore}
+                            onValueChange={(e) => handleScoreChange(studentScore.student._id, 'examScore', e.value ?? 0)}
+                            min={0}
+                            max={100}
+                            className="w-full"
+                            disabled={saving}
+                            showButtons
+                            buttonLayout="horizontal"
+                            step={1}
+                            decrementButtonClassName="p-button-outlined p-button-sm"
+                            incrementButtonClassName="p-button-outlined p-button-sm"
+                        />
+                    </div>
+
+                    <div className="grid">
+                        <div className="col-4">
+                            <div className="text-center">
+                                <div className="text-600 text-xs mb-1">Total</div>
+                                <Chip label={studentScore.totalScore.toFixed(1)} className="font-bold" />
+                            </div>
+                        </div>
+                        <div className="col-4">
+                            <div className="text-center">
+                                <div className="text-600 text-xs mb-1">Grade</div>
+                                <Tag value={studentScore.grade} severity={studentScore.grade === 'A' ? 'success' : studentScore.grade === 'B' ? 'info' : studentScore.grade === 'C' ? 'warning' : 'danger'} className="font-bold" />
+                            </div>
+                        </div>
+                        <div className="col-4">
+                            <div className="text-center">
+                                <div className="text-600 text-xs mb-1">Grade Point</div>
+                                <Chip label={studentScore.credit.toFixed(1)} className={`font-bold ${studentScore.credit >= 4 ? 'bg-green-500' : studentScore.credit >= 2 ? 'bg-blue-500' : studentScore.credit > 0 ? 'bg-orange-500' : 'bg-red-500'}`} />
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+            ))}
+        </div>
+    );
+
     // Render score entry table
     const renderScoreTable = () => (
         <Card>
@@ -882,10 +952,14 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
                     </div>
                 }
                 end={
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                         <Chip label={`${savedCount}/${formData.studentScores.length} Saved`} icon="pi pi-check-circle" />
-                        <Button label="Download Template" icon="pi pi-download" onClick={handleDownloadTemplate} className="p-button-outlined p-button-sm" disabled={saving || uploading} tooltip="Download CSV template with student list" />
-                        <FileUpload ref={fileUploadRef} mode="basic" accept=".csv" maxFileSize={1000000} onSelect={handleFileUpload} auto chooseLabel="Upload Scores" className="p-button-outlined p-button-sm" disabled={saving || uploading} />
+                        {!isMobile && (
+                            <>
+                                <Button label="Download Template" icon="pi pi-download" onClick={handleDownloadTemplate} className="p-button-outlined p-button-sm" disabled={saving || uploading} tooltip="Download CSV template with student list" />
+                                <FileUpload ref={fileUploadRef} mode="basic" accept=".csv" maxFileSize={1000000} onSelect={handleFileUpload} auto chooseLabel="Upload Scores" className="p-button-outlined p-button-sm" disabled={saving || uploading} />
+                            </>
+                        )}
                         <Button label="Auto Calculate" icon="pi pi-calculator" onClick={handleAutoCalculateAll} className="p-button-outlined p-button-sm" disabled={saving || uploading} />
                         <Button label="Save All" icon="pi pi-save" onClick={handleSaveAll} loading={saving} className="p-button-success p-button-sm" disabled={uploading} />
                     </div>
@@ -894,18 +968,22 @@ const ClassExamScoreEntry: React.FC<ClassExamScoreEntryProps> = ({ onClose, preS
 
             <Divider />
 
-            {formData.studentScores.length > 0 && <Message severity="info" text="💡 Tip: Download the CSV template, fill in scores offline, then upload to quickly import all scores at once" className="mb-3" />}
+            {formData.studentScores.length > 0 && !isMobile && <Message severity="info" text="💡 Tip: Download the CSV template, fill in scores offline, then upload to quickly import all scores at once" className="mb-3" />}
 
-            <DataTable value={formData.studentScores} scrollable scrollHeight="500px" emptyMessage="No students loaded" className="mt-3">
-                <Column header="#" body={(data, options) => options.rowIndex + 1} style={{ width: '60px' }} frozen />
-                <Column header="Student" body={studentNameTemplate} style={{ minWidth: '250px' }} frozen />
-                <Column header="Class Score (40%)" body={classScoreTemplate} style={{ width: '200px' }} />
-                <Column header="Exam Score (60%)" body={examScoreTemplate} style={{ width: '200px' }} />
-                <Column header="Total" body={totalScoreTemplate} style={{ width: '100px' }} />
-                <Column header="Grade" body={gradeTemplate} style={{ width: '100px' }} />
-                <Column header="Grade Point" body={creditTemplate} style={{ width: '120px' }} />
-                <Column header="Status" body={statusTemplate} style={{ width: '120px' }} />
-            </DataTable>
+            {isMobile ? (
+                renderMobileScoreCards()
+            ) : (
+                <DataTable value={formData.studentScores} scrollable scrollHeight="500px" emptyMessage="No students loaded" className="mt-3">
+                    <Column header="#" body={(data, options) => options.rowIndex + 1} style={{ width: '60px' }} frozen />
+                    <Column header="Student" body={studentNameTemplate} style={{ minWidth: '250px' }} frozen />
+                    <Column header="Class Score (40%)" body={classScoreTemplate} style={{ width: '200px' }} />
+                    <Column header="Exam Score (60%)" body={examScoreTemplate} style={{ width: '200px' }} />
+                    <Column header="Total" body={totalScoreTemplate} style={{ width: '100px' }} />
+                    <Column header="Grade" body={gradeTemplate} style={{ width: '100px' }} />
+                    <Column header="Grade Point" body={creditTemplate} style={{ width: '120px' }} />
+                    <Column header="Status" body={statusTemplate} style={{ width: '120px' }} />
+                </DataTable>
+            )}
 
             <div className="mt-3 p-3 surface-100 border-round">
                 <div className="grid">

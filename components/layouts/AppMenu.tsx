@@ -53,6 +53,8 @@ const AppMenu = () => {
             icon: 'pi pi-wallet',
             items: [
                 { label: 'Financial Overview', icon: 'pi pi-fw pi-chart-line', to: '/finance' },
+                { label: 'Billing Dashboard', icon: 'pi pi-fw pi-chart-bar', to: '/finance/billing-dashboard' },
+                { label: 'Student Billing', icon: 'pi pi-fw pi-file-edit', to: '/billing' },
                 { label: 'Fee Determinants', icon: 'pi pi-fw pi-tags', to: '/determinants' },
                 { label: 'Fee Configurations', icon: 'pi pi-fw pi-cog', to: '/configure' },
                 { label: 'Fee Payments', icon: 'pi pi-fw pi-dollar', to: '/payments' },

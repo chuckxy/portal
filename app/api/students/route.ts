@@ -68,10 +68,16 @@ export async function GET(request: NextRequest) {
         }
 
         const students = await studentsQuery.lean();
-        const totalCount = await Person.countDocuments(query);
 
+        // Add fullName virtual field to lean results
+        const studentsWithFullName = students.map((student: any) => ({
+            ...student,
+            fullName: [student.firstName, student.middleName, student.lastName].filter(Boolean).join(' ')
+        }));
+
+        const totalCount = await Person.countDocuments(query);
         return NextResponse.json({
-            students,
+            students: studentsWithFullName,
             total: totalCount,
             page,
             limit: limit || totalCount,

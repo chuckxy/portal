@@ -1,55 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import Person from '@/models/Person';
-import FeesConfiguration from '@/models/FeesConfiguration';
 import FeesPayment from '@/models/FeesPayment';
 import DailyFeeCollection from '@/models/DailyFeeCollection';
 import Expenditure from '@/models/Expenditure';
 import Scholarship from '@/models/Scholarship';
-
-/**
- * Calculate historical arrears based on student's class history
- */
-async function calculateHistoricalArrears(studentId: string, classHistory: any[], currentAcademicYear: string) {
-    let totalArrears = 0;
-
-    for (const history of classHistory) {
-        // Skip current period
-        if (history.academicYear === currentAcademicYear) {
-            continue;
-        }
-
-        // Skip future periods
-        if (history.academicYear > currentAcademicYear) {
-            continue;
-        }
-
-        // Get fees configuration for this period and class
-        const feeConfig = await FeesConfiguration.findOne({
-            class: history.class,
-            academicYear: history.academicYear,
-            academicTerm: history.academicTerm,
-            isActive: true
-        }).lean();
-
-        if (!feeConfig) continue;
-
-        const periodFees = feeConfig.totalAmount || 0;
-
-        // Get payments for this specific period
-        const periodPayments = await FeesPayment.find({
-            student: studentId,
-            academicYear: history.academicYear,
-            academicTerm: history.academicTerm,
-            status: { $in: ['confirmed', 'pending'] }
-        }).lean();
-
-        const periodPaid = periodPayments.reduce((sum, payment) => sum + payment.amountPaid, 0);
-        totalArrears += periodFees - periodPaid;
-    }
-
-    return totalArrears;
-}
+import StudentBilling from '@/models/StudentBilling';
 
 export async function GET(request: NextRequest) {
     try {
@@ -119,25 +74,23 @@ export async function GET(request: NextRequest) {
         const feePayments = await FeesPayment.find(feePaymentsQuery).lean();
         const totalFeesReceived = feePayments.reduce((sum, p) => sum + p.amountPaid, 0);
 
-        // 2. Expected Fees (from configurations)
-        const feeConfigQuery: any = {
-            isActive: true,
-            academicYear: effectiveAcademicYear
+        // 2. Expected Fees - Source from StudentBilling collection (single source of truth)
+        const expectedFeesQuery: any = {
+            academicYear: effectiveAcademicYear,
+            isCurrent: true
         };
-        if (site) feeConfigQuery.site = site;
+        if (site) expectedFeesQuery.schoolSite = site;
 
-        const feeConfigurations = await FeesConfiguration.find(feeConfigQuery).lean();
-
-        // Get student count per class to calculate expected
-        let totalFeesExpected = 0;
-        for (const config of feeConfigurations) {
-            const studentCount = await Person.countDocuments({
-                personCategory: 'student',
-                isActive: true,
-                'studentInfo.currentClass': config.class
-            });
-            totalFeesExpected += config.totalAmount * studentCount;
-        }
+        const expectedFeesAggregation = await StudentBilling.aggregate([
+            { $match: expectedFeesQuery },
+            {
+                $group: {
+                    _id: null,
+                    totalExpected: { $sum: '$totalBilled' }
+                }
+            }
+        ]);
+        const totalFeesExpected = expectedFeesAggregation[0]?.totalExpected || 0;
 
         // 3. Daily Collections
         const dailyCollectionsQuery = {
@@ -181,71 +134,74 @@ export async function GET(request: NextRequest) {
 
         const approvedExpenditures = expenditures.filter((e) => e.status === 'approved').reduce((sum, e) => sum + e.amount, 0);
 
-        // RECEIVABLES
+        // RECEIVABLES - Source from StudentBilling collection (single source of truth)
 
-        // Calculate outstanding from all active students
-        const studentsQuery: any = {
-            personCategory: 'student',
-            isActive: true,
-            'studentInfo.currentClass': { $exists: true, $ne: null }
+        const billingQuery: any = {
+            academicYear: effectiveAcademicYear,
+            isCurrent: true
         };
-        if (site) studentsQuery.schoolSite = site;
+        if (site) billingQuery.schoolSite = site;
 
-        // @ts-ignore
-        const students = await Person.find(studentsQuery).populate('studentInfo.currentClass').lean();
-
-        let totalOutstanding = 0;
-        let totalBalanceBroughtForward = 0; // Aggregate B/F across all students
-        let criticalDebtors = 0;
-        let overdueAmount = 0;
-
-        for (const student of students) {
-            const currentClass = (student.studentInfo as any)?.currentClass;
-            if (!currentClass) continue;
-
-            const classConfig = await FeesConfiguration.findOne({
-                class: currentClass._id,
-                academicYear: effectiveAcademicYear,
-                isActive: true
-            }).lean();
-
-            if (!classConfig) continue;
-
-            // Get Balance Brought Forward (opening balance from before computerization)
-            const balanceBroughtForward = (student.studentInfo as any)?.balanceBroughtForward || 0;
-            totalBalanceBroughtForward += balanceBroughtForward;
-
-            // Calculate historical arrears from class history
-            const classHistory = (student.studentInfo as any)?.classHistory || [];
-            const historicalArrears = await calculateHistoricalArrears(student._id.toString(), classHistory, effectiveAcademicYear);
-
-            const payments = await FeesPayment.find({
-                student: student._id,
-                academicYear: effectiveAcademicYear,
-                status: { $ne: 'failed' }
-            }).lean();
-
-            const paid = payments.reduce((sum, p) => sum + p.amountPaid, 0);
-
-            // Calculate outstanding: B/F + historical arrears + current period outstanding
-            // Historical arrears can be negative (overpayment)
-            const currentPeriodOutstanding = classConfig.totalAmount - paid;
-            const outstanding = balanceBroughtForward + historicalArrears + currentPeriodOutstanding;
-
-            if (outstanding > 0) {
-                totalOutstanding += outstanding;
-
-                // Calculate percentage based on total required (current fees + historical arrears + balance B/F)
-                const totalRequired = classConfig.totalAmount + historicalArrears + balanceBroughtForward;
-                const percentagePaid = totalRequired > 0 ? (paid / totalRequired) * 100 : 0;
-                if (percentagePaid < 25) criticalDebtors++;
-
-                // Check if overdue
-                if (classConfig.paymentDeadline && new Date(classConfig.paymentDeadline) < now) {
-                    overdueAmount += outstanding;
+        // Aggregate outstanding receivables from StudentBilling
+        const billingAggregation = await StudentBilling.aggregate([
+            { $match: billingQuery },
+            {
+                $group: {
+                    _id: null,
+                    totalOutstanding: {
+                        $sum: {
+                            $cond: [{ $gt: ['$currentBalance', 0] }, '$currentBalance', 0]
+                        }
+                    },
+                    totalBalanceBroughtForward: { $sum: '$balanceBroughtForward' },
+                    criticalDebtors: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [{ $gt: ['$currentBalance', 0] }, { $gt: ['$totalBilled', 0] }, { $lt: [{ $divide: ['$totalPaid', '$totalBilled'] }, 0.25] }]
+                                },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    overdueCount: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [{ $gt: ['$currentBalance', 0] }, { $ne: ['$paymentDueDate', null] }, { $lt: ['$paymentDueDate', now] }]
+                                },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    overdueAmount: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [{ $gt: ['$currentBalance', 0] }, { $ne: ['$paymentDueDate', null] }, { $lt: ['$paymentDueDate', now] }]
+                                },
+                                '$currentBalance',
+                                0
+                            ]
+                        }
+                    }
                 }
             }
-        }
+        ]);
+
+        const billingData = billingAggregation[0] || {
+            totalOutstanding: 0,
+            totalBalanceBroughtForward: 0,
+            criticalDebtors: 0,
+            overdueAmount: 0
+        };
+
+        const totalOutstanding = billingData.totalOutstanding;
+        const totalBalanceBroughtForward = billingData.totalBalanceBroughtForward;
+        const criticalDebtors = billingData.criticalDebtors;
+        const overdueAmount = billingData.overdueAmount;
 
         // CASH POSITION
         const netCashFlow = totalIncome - totalExpenditures;
