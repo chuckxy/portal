@@ -673,6 +673,7 @@ const PersonManagement: React.FC = () => {
                 stripedRows
                 showGridlines
                 responsiveLayout="scroll"
+                selectionMode='multiple'
                 selection={selectedPersons}
                 onSelectionChange={(e) => setSelectedPersons(e.value)}
                 dataKey="_id"
