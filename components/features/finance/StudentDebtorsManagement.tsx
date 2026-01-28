@@ -185,8 +185,9 @@ export const StudentDebtorsManagement: React.FC = () => {
     });
 
     useEffect(() => {
-        fetchSites();
-        fetchDebtors();
+        if (user) {
+            fetchSites();
+        }
     }, [user]);
 
     useEffect(() => {
@@ -211,8 +212,10 @@ export const StudentDebtorsManagement: React.FC = () => {
             const data = await response.json();
             if (Array.isArray(data.sites)) {
                 setSites(data.sites);
+                // Set the default site if not already set
                 if (data.sites.length > 0 && !filters.site) {
-                    setFilters((prev) => ({ ...prev, site: data.sites[0]._id }));
+                    const defaultSite = user.schoolSite || data.sites[0]._id;
+                    setFilters((prev) => ({ ...prev, site: defaultSite }));
                 }
             }
         } catch (error) {
@@ -241,24 +244,48 @@ export const StudentDebtorsManagement: React.FC = () => {
 
     const fetchDebtors = async () => {
         if (!user) return;
+
         try {
             setLoading(true);
             const queryParams = new URLSearchParams();
 
-            if (filters.site) queryParams.append('site', filters.site);
-            else if (user.schoolSite) queryParams.append('site', user.schoolSite);
-            if (filters.class) queryParams.append('class', filters.class);
-            if (filters.academicYear) queryParams.append('academicYear', filters.academicYear);
-            if (filters.academicTerm) queryParams.append('academicTerm', filters.academicTerm.toString());
-            if (filters.minBalance) queryParams.append('minBalance', filters.minBalance.toString());
-            if (filters.searchQuery) queryParams.append('search', filters.searchQuery);
+            // Always use the current school site (either from filter or user)
+            const siteId = filters.site || user.schoolSite;
+            if (!siteId) {
+                toast.current?.show({
+                    severity: 'warn',
+                    summary: 'No Site Selected',
+                    detail: 'Please select a site to view debtors',
+                    life: 3000
+                });
+                setLoading(false);
+                return;
+            }
+            queryParams.append('site', siteId);
+
+            // Only filter by class if specifically selected (otherwise fetch ALL classes)
+            if (filters.class && filters.class.trim() !== '') {
+                queryParams.append('class', filters.class);
+            }
+
+            if (filters.academicYear && filters.academicYear.trim() !== '') {
+                queryParams.append('academicYear', filters.academicYear);
+            }
+            if (filters.academicTerm !== null && filters.academicTerm !== undefined) {
+                queryParams.append('academicTerm', filters.academicTerm.toString());
+            }
+            if (filters.minBalance !== null && filters.minBalance !== undefined) {
+                queryParams.append('minBalance', filters.minBalance.toString());
+            }
+            if (filters.searchQuery && filters.searchQuery.trim() !== '') {
+                queryParams.append('search', filters.searchQuery);
+            }
 
             const response = await fetch(`/api/student-debtors?${queryParams.toString()}`);
 
             if (!response.ok) throw new Error('Failed to fetch debtors');
 
             const data = await response.json();
-            console.log(data);
             setDebtors(data.debtors || []);
             calculateStatistics(data.debtors || []);
         } catch (error) {

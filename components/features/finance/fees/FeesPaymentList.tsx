@@ -18,8 +18,10 @@ import { InputNumber } from 'primereact/inputnumber';
 import { PaymentListItem, PaymentFilters } from '@/types/payment';
 import { PaymentMethod, PaymentStatus } from '@/models/FeesPayment';
 import { FeesPaymentRecording } from './FeesPaymentRecording';
+import { useAuth } from '@/context/AuthContext';
 
 export const FeesPaymentList: React.FC = () => {
+    const { user } = useAuth();
     const [payments, setPayments] = useState<PaymentListItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [totalRecords, setTotalRecords] = useState(0);
@@ -56,13 +58,16 @@ export const FeesPaymentList: React.FC = () => {
     }, [lazyState, appliedFilters]);
 
     const loadPayments = async () => {
+        if (!user?.schoolSite) return;
+
         setLoading(true);
         try {
             const queryParams = new URLSearchParams({
                 page: String(lazyState.page),
                 limit: String(lazyState.rows),
                 sortField: lazyState.sortField || 'datePaid',
-                sortOrder: String(lazyState.sortOrder)
+                sortOrder: String(lazyState.sortOrder),
+                siteId: user.schoolSite // Always filter by logged-in user's school site
             });
 
             // Add filters with proper type conversion
@@ -75,9 +80,10 @@ export const FeesPaymentList: React.FC = () => {
             if (appliedFilters.paymentMethod) {
                 queryParams.append('paymentMethod', appliedFilters.paymentMethod);
             }
-            if (appliedFilters.siteId) {
-                queryParams.append('siteId', appliedFilters.siteId);
-            }
+            // Remove manual siteId filter since it's now automatic
+            // if (appliedFilters.siteId) {
+            //     queryParams.append('siteId', appliedFilters.siteId);
+            // }
             if (appliedFilters.classId) {
                 queryParams.append('classId', appliedFilters.classId);
             }

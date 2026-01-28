@@ -65,8 +65,9 @@ const postHandler = async (request: NextRequest) => {
         const results = {
             generated: 0,
             skipped: 0,
-            errors: [] as { studentId: string; error: string }[],
-            details: [] as any[]
+            errors: [] as { studentId: string; studentName?: string; classId?: string; error: string }[],
+            details: [] as any[],
+            classesProcessed: [] as any[]
         };
 
         // Process each class
@@ -81,13 +82,33 @@ const postHandler = async (request: NextRequest) => {
             }).lean();
 
             if (!feeConfig) {
-                // Skip classes without fee configuration
+                // Log classes without fee configuration for diagnostic purposes
+                const classInfo = await SiteClass.findById(classId).select('className').lean();
+                results.classesProcessed.push({
+                    classId,
+                    className: (classInfo as any)?.className || 'Unknown',
+                    status: 'skipped',
+                    reason: 'No fee configuration found'
+                });
                 continue;
             }
 
             // Get students in this class by their currentClass reference
-            // @ts-ignore
-            const students = await Person.find({ personCategory: 'student', isActive: true, 'studentInfo.currentClass': classId }).select('_id firstName lastName studentInfo school schoolSite').lean();
+            // Include schoolSite filter to ensure only students from the correct site are included
+            const students = await Person.find({
+                personCategory: 'student',
+                isActive: true,
+                schoolSite: data.schoolSiteId,
+                'studentInfo.currentClass': classId
+            } as any)
+                .select('_id firstName lastName studentInfo school schoolSite')
+                .lean();
+
+            console.log(`Found ${students.length} students in class ${classId}`);
+
+            // Track generation stats for this class
+            let classGenerated = 0;
+            let classSkipped = 0;
 
             // Generate billing for each student
             for (const student of students) {
@@ -102,6 +123,7 @@ const postHandler = async (request: NextRequest) => {
 
                     if (existingBilling) {
                         results.skipped++;
+                        classSkipped++;
                         continue;
                     }
 
@@ -168,25 +190,41 @@ const postHandler = async (request: NextRequest) => {
                     }
 
                     results.generated++;
+                    classGenerated++;
                     results.details.push({
                         studentId: student._id,
                         studentName: `${(student as any).firstName} ${(student as any).lastName}`,
                         billingId: billing._id,
+                        classId: classId,
                         totalBilled: billing.totalBilled
                     });
                 } catch (error: any) {
                     results.errors.push({
                         studentId: (student._id as any).toString(),
+                        studentName: `${(student as any).firstName} ${(student as any).lastName}`,
+                        classId: classId,
                         error: error.message
                     });
                 }
             }
+
+            // Track class processing results
+            const classInfo = await SiteClass.findById(classId).select('className').lean();
+            results.classesProcessed.push({
+                classId,
+                className: (classInfo as any)?.className || 'Unknown',
+                studentsFound: students.length,
+                billsGenerated: classGenerated,
+                billsSkipped: classSkipped,
+                errors: results.errors.filter((e) => e.classId === classId).length,
+                status: 'processed'
+            });
         }
 
         return NextResponse.json(
             {
                 success: true,
-                message: `Generated ${results.generated} billing records, skipped ${results.skipped} existing`,
+                message: `Generated ${results.generated} billing records, skipped ${results.skipped} existing${results.errors.length > 0 ? `, ${results.errors.length} errors` : ''}`,
                 results
             },
             { status: 201 }

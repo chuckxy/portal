@@ -107,6 +107,12 @@ const StudentBillingManagement: React.FC = () => {
     const [chargeDialogVisible, setChargeDialogVisible] = useState(false);
     const [generateDialogVisible, setGenerateDialogVisible] = useState(false);
     const [createDialogVisible, setCreateDialogVisible] = useState(false);
+    const [verificationDialogVisible, setVerificationDialogVisible] = useState(false);
+    const [verificationData, setVerificationData] = useState<any>(null);
+    const [missingStudentsDialogVisible, setMissingStudentsDialogVisible] = useState(false);
+    const [selectedClassMissingStudents, setSelectedClassMissingStudents] = useState<any>(null);
+    const [generationResultsDialogVisible, setGenerationResultsDialogVisible] = useState(false);
+    const [generationResults, setGenerationResults] = useState<any>(null);
 
     // Charge form
     const [chargeForm, setChargeForm] = useState<AddChargeRequest>({
@@ -208,6 +214,7 @@ const StudentBillingManagement: React.FC = () => {
             const params = new URLSearchParams({ siteId: selectedSite });
             if (selectedYear) params.append('academicYear', selectedYear);
             if (selectedTerm) params.append('academicTerm', String(selectedTerm));
+            if (selectedClass) params.append('classId', selectedClass);
 
             const response = await fetch(`/api/student-billing/summary?${params}`);
             const data = await response.json();
@@ -220,7 +227,7 @@ const StudentBillingManagement: React.FC = () => {
         } finally {
             setSummaryLoading(false);
         }
-    }, [selectedSite, selectedYear, selectedTerm]);
+    }, [selectedSite, selectedYear, selectedTerm, selectedClass]);
 
     const searchStudents = async (query: string) => {
         if (!query || query.length < 2) {
@@ -254,6 +261,7 @@ const StudentBillingManagement: React.FC = () => {
     useEffect(() => {
         if (selectedSite) {
             fetchBillings();
+            fetchSummary();
         }
     }, [selectedYear, selectedTerm, selectedClass, selectedStatus, owingOnly, first, rows]);
 
@@ -343,6 +351,142 @@ const StudentBillingManagement: React.FC = () => {
         }
     };
 
+    const handleVerifyBilling = async () => {
+        if (!selectedSite || !selectedYear || !selectedTerm) {
+            toast.current?.show({
+                severity: 'warn',
+                summary: 'Validation Error',
+                detail: 'Please select site, academic year, and term',
+                life: 3000
+            });
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const params = new URLSearchParams({
+                schoolSiteId: selectedSite,
+                academicYear: selectedYear,
+                academicTerm: String(selectedTerm)
+            });
+
+            if (selectedClass) {
+                params.append('classId', selectedClass);
+            }
+
+            const response = await fetch(`/api/student-billing/verify?${params}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                console.log('Verification Results:', data);
+                setVerificationData(data);
+                setVerificationDialogVisible(true);
+            } else {
+                toast.current?.show({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: data.error || 'Failed to verify billing coverage',
+                    life: 5000
+                });
+            }
+        } catch (error) {
+            console.error('Error verifying billing:', error);
+            toast.current?.show({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'Failed to verify billing coverage',
+                life: 5000
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDeleteBilling = async () => {
+        if (!selectedSite || !selectedYear || !selectedTerm) {
+            toast.current?.show({
+                severity: 'warn',
+                summary: 'Validation Error',
+                detail: 'Please select site, academic year, and term',
+                life: 3000
+            });
+            return;
+        }
+
+        confirmDialog({
+            message: `⚠️ WARNING: This will DELETE all billing records for ${selectedYear} Term ${selectedTerm}${
+                selectedClass ? ' for the selected class' : ''
+            }.\n\nThis action cannot be undone!\n\nOnly proceed if NO payments have been made yet.\n\nContinue?`,
+            header: 'Confirm Bulk Deletion',
+            icon: 'pi pi-exclamation-triangle',
+            acceptClassName: 'p-button-danger',
+            rejectClassName: 'p-button-text',
+            accept: async () => {
+                setSaving(true);
+                try {
+                    const response = await fetch('/api/student-billing/bulk-delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            schoolSiteId: selectedSite,
+                            academicYear: selectedYear,
+                            academicTerm: selectedTerm,
+                            classId: selectedClass || undefined,
+                            deletedBy: user?.id,
+                            force: false
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        let detailMessage = data.message;
+
+                        if (data.summary) {
+                            detailMessage += `\n\nDeleted: ${data.summary.deleted}\nErrors: ${data.summary.errors}`;
+                        }
+
+                        if (data.results?.warnings?.length > 0) {
+                            detailMessage += `\n\nWarnings: ${data.results.warnings.length}`;
+                            console.warn('Deletion warnings:', data.results.warnings);
+                        }
+
+                        if (data.results?.optimization) {
+                            const opt = data.results.optimization;
+                            detailMessage += `\n\nDatabase Optimization:\n- Orphaned payments: ${opt.orphanedPaymentsFound}\n- Broken links fixed: ${opt.brokenLinksFixed}`;
+                        }
+
+                        toast.current?.show({
+                            severity: 'success',
+                            summary: 'Success',
+                            detail: detailMessage,
+                            life: 8000
+                        });
+                        fetchBillings();
+                        fetchSummary();
+                    } else {
+                        toast.current?.show({
+                            severity: 'error',
+                            summary: 'Error',
+                            detail: data.error || data.message || 'Failed to delete billing records',
+                            life: 8000
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error deleting billings:', error);
+                    toast.current?.show({
+                        severity: 'error',
+                        summary: 'Error',
+                        detail: 'Failed to delete billing records',
+                        life: 5000
+                    });
+                } finally {
+                    setSaving(false);
+                }
+            }
+        });
+    };
+
     const handleGenerateBilling = async () => {
         if (!selectedSite || !selectedYear || !selectedTerm) {
             toast.current?.show({
@@ -377,12 +521,8 @@ const StudentBillingManagement: React.FC = () => {
                     const data = await response.json();
 
                     if (response.ok) {
-                        toast.current?.show({
-                            severity: 'success',
-                            summary: 'Success',
-                            detail: data.message,
-                            life: 5000
-                        });
+                        setGenerationResults(data);
+                        setGenerationResultsDialogVisible(true);
                         fetchBillings();
                         fetchSummary();
                     } else {
@@ -486,6 +626,8 @@ const StudentBillingManagement: React.FC = () => {
                     <InputText value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="Search students..." className="w-15rem" />
                 </span>
                 <Dropdown value={selectedStatus} options={STATUS_OPTIONS} placeholder="Status" onChange={(e) => setSelectedStatus(e.value)} className="w-10rem" />
+                <Button label="Verify Coverage" icon="pi pi-check-circle" severity="info" onClick={handleVerifyBilling} loading={saving} tooltip="Check for students without billing records" />
+                <Button label="Delete Bills" icon="pi pi-trash" severity="danger" onClick={handleDeleteBilling} loading={saving} tooltip="Delete all billing records for selected period" />
                 <Button label="Generate Bills" icon="pi pi-cog" severity="success" onClick={handleGenerateBilling} loading={saving} />
                 <Button icon="pi pi-refresh" rounded outlined onClick={fetchBillings} tooltip="Refresh" />
             </div>
@@ -739,6 +881,524 @@ const StudentBillingManagement: React.FC = () => {
         );
     };
 
+    // ==================== GENERATION RESULTS DIALOG ====================
+
+    const renderGenerationResultsDialog = () => {
+        if (!generationResults) return null;
+
+        const { results, message } = generationResults;
+        const hasErrors = results?.errors?.length > 0;
+        const hasWarnings = results?.warnings?.length > 0;
+        const isSuccess = results?.generated > 0;
+        const isPartialSuccess = isSuccess && (hasErrors || results?.skipped > 0);
+
+        return (
+            <Dialog
+                visible={generationResultsDialogVisible}
+                onHide={() => {
+                    setGenerationResultsDialogVisible(false);
+                    setGenerationResults(null);
+                }}
+                header={
+                    <div className="flex align-items-center gap-2">
+                        <i className={`pi ${isSuccess ? 'pi-check-circle text-green-600' : 'pi-exclamation-circle text-orange-600'} text-2xl`} />
+                        <span>Bill Generation Results</span>
+                    </div>
+                }
+                style={{ width: '800px', maxWidth: '95vw' }}
+                modal
+            >
+                {/* Summary Cards */}
+                <div className="grid mb-3">
+                    <div className="col-12 md:col-4">
+                        <Card className="bg-green-50 border-2 border-green-300">
+                            <div className="text-center">
+                                <i className="pi pi-check-circle text-green-600 text-4xl mb-2" />
+                                <div className="text-500 text-sm">Generated</div>
+                                <div className="text-3xl font-bold text-green-600">{results?.generated || 0}</div>
+                            </div>
+                        </Card>
+                    </div>
+                    <div className="col-12 md:col-4">
+                        <Card className="bg-blue-50 border-2 border-blue-300">
+                            <div className="text-center">
+                                <i className="pi pi-info-circle text-blue-600 text-4xl mb-2" />
+                                <div className="text-500 text-sm">Skipped</div>
+                                <div className="text-3xl font-bold text-blue-600">{results?.skipped || 0}</div>
+                            </div>
+                        </Card>
+                    </div>
+                    <div className="col-12 md:col-4">
+                        <Card className={`${hasErrors ? 'bg-red-50 border-2 border-red-300' : 'bg-gray-50 border-2 border-gray-300'}`}>
+                            <div className="text-center">
+                                <i className={`pi pi-times-circle ${hasErrors ? 'text-red-600' : 'text-gray-400'} text-4xl mb-2`} />
+                                <div className="text-500 text-sm">Errors</div>
+                                <div className={`text-3xl font-bold ${hasErrors ? 'text-red-600' : 'text-gray-400'}`}>{results?.errors?.length || 0}</div>
+                            </div>
+                        </Card>
+                    </div>
+                </div>
+
+                {/* Status Message */}
+                <Message
+                    severity={isSuccess ? (isPartialSuccess ? 'warn' : 'success') : 'error'}
+                    className="mb-3"
+                    content={
+                        <div className="flex align-items-center gap-2">
+                            <div>
+                                <div className="font-semibold text-lg">{message}</div>
+                                {isPartialSuccess && <div className="text-sm mt-1">Some bills were skipped (already exist) or encountered errors.</div>}
+                            </div>
+                        </div>
+                    }
+                />
+
+                {/* Class Breakdown */}
+                {results?.classesProcessed?.length > 0 && (
+                    <div className="mb-3">
+                        <div className="flex align-items-center gap-2 mb-2">
+                            <i className="pi pi-list text-xl" />
+                            <span className="font-semibold text-lg">Class-by-Class Breakdown</span>
+                        </div>
+
+                        <DataTable value={results.classesProcessed} size="small" stripedRows className="text-sm">
+                            <Column field="className" header="Class" style={{ fontWeight: 600, minWidth: '150px' }} />
+                            <Column
+                                field="status"
+                                header="Status"
+                                body={(rowData) => {
+                                    if (rowData.status === 'skipped') {
+                                        return <Tag value="Skipped" severity="warning" icon="pi pi-exclamation-triangle" />;
+                                    }
+                                    if (rowData.billsGenerated > 0) {
+                                        return <Tag value="Processed" severity="success" icon="pi pi-check" />;
+                                    }
+                                    return <Tag value="No Action" severity="info" icon="pi pi-info-circle" />;
+                                }}
+                                style={{ width: '130px' }}
+                            />
+                            <Column
+                                field="studentsFound"
+                                header="Students"
+                                body={(rowData) => (
+                                    <div className="text-center">
+                                        <Badge value={rowData.studentsFound || 0} severity="info" />
+                                    </div>
+                                )}
+                                style={{ textAlign: 'center', width: '100px' }}
+                            />
+                            <Column field="billsGenerated" header="Generated" body={(rowData) => <span className="font-semibold text-green-600">{rowData.billsGenerated || 0}</span>} style={{ textAlign: 'center', width: '100px' }} />
+                            <Column field="billsSkipped" header="Skipped" body={(rowData) => <span className="text-blue-600">{rowData.billsSkipped || 0}</span>} style={{ textAlign: 'center', width: '100px' }} />
+                            <Column
+                                field="errors"
+                                header="Errors"
+                                body={(rowData) => <span className={`font-semibold ${rowData.errors > 0 ? 'text-red-600' : 'text-gray-400'}`}>{rowData.errors || 0}</span>}
+                                style={{ textAlign: 'center', width: '80px' }}
+                            />
+                            <Column
+                                field="reason"
+                                header="Notes"
+                                body={(rowData) => {
+                                    if (rowData.reason) {
+                                        return <span className="text-sm text-500">{rowData.reason}</span>;
+                                    }
+                                    if (rowData.status === 'processed' && rowData.billsGenerated === 0) {
+                                        return <span className="text-sm text-500">No new bills needed</span>;
+                                    }
+                                    return <span className="text-500">-</span>;
+                                }}
+                                style={{ minWidth: '200px' }}
+                            />
+                        </DataTable>
+                    </div>
+                )}
+
+                {/* Errors Section */}
+                {hasErrors && (
+                    <div className="mb-3">
+                        <Panel
+                            header={
+                                <div className="flex align-items-center gap-2">
+                                    <i className="pi pi-exclamation-triangle text-red-600" />
+                                    <span className="font-semibold">Errors Encountered ({results.errors.length})</span>
+                                </div>
+                            }
+                            toggleable
+                            collapsed
+                            className="border-2 border-red-300"
+                        >
+                            <DataTable value={results.errors} size="small" paginator={results.errors.length > 5} rows={5}>
+                                <Column header="#" body={(data, options) => options.rowIndex + 1} style={{ width: '50px' }} />
+                                <Column field="studentName" header="Student" style={{ minWidth: '150px' }} />
+                                <Column field="classId" header="Class" style={{ width: '100px' }} />
+                                <Column field="error" header="Error Message" style={{ minWidth: '250px' }} />
+                            </DataTable>
+                        </Panel>
+                    </div>
+                )}
+
+                {/* Detailed Bills (Sample) */}
+                {results?.details?.length > 0 && (
+                    <div className="mb-3">
+                        <Panel
+                            header={
+                                <div className="flex align-items-center gap-2">
+                                    <i className="pi pi-file-check text-green-600" />
+                                    <span className="font-semibold">Generated Bills (Sample - First 10)</span>
+                                </div>
+                            }
+                            toggleable
+                            collapsed
+                        >
+                            <DataTable value={results.details.slice(0, 10)} size="small" className="text-sm">
+                                <Column header="#" body={(data, options) => options.rowIndex + 1} style={{ width: '50px' }} />
+                                <Column field="studentName" header="Student" style={{ minWidth: '180px', fontWeight: 500 }} />
+                                <Column field="classId" header="Class" style={{ width: '100px' }} />
+                                <Column field="totalBilled" header="Amount" body={(rowData) => formatCurrency(rowData.totalBilled)} style={{ textAlign: 'right', width: '120px' }} />
+                                <Column header="Status" body={() => <Tag value="Created" severity="success" icon="pi pi-check" />} style={{ width: '100px' }} />
+                            </DataTable>
+                            {results.details.length > 10 && <div className="text-center mt-2 text-sm text-500">... and {results.details.length - 10} more bills</div>}
+                        </Panel>
+                    </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex justify-content-between align-items-center mt-4 p-3 bg-gray-50 border-round">
+                    <div className="flex align-items-center gap-2 text-sm">
+                        <i className="pi pi-info-circle text-blue-600" />
+                        <span className="text-600">{isSuccess ? 'Bills have been generated successfully and are ready for payment collection.' : 'Review the errors above and try again.'}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        {isSuccess && (
+                            <Button
+                                label="Verify Coverage"
+                                icon="pi pi-check-circle"
+                                outlined
+                                severity="info"
+                                onClick={() => {
+                                    setGenerationResultsDialogVisible(false);
+                                    handleVerifyBilling();
+                                }}
+                            />
+                        )}
+                        <Button
+                            label="Close"
+                            icon="pi pi-times"
+                            onClick={() => {
+                                setGenerationResultsDialogVisible(false);
+                                setGenerationResults(null);
+                            }}
+                        />
+                    </div>
+                </div>
+            </Dialog>
+        );
+    };
+
+    // ==================== MISSING STUDENTS DIALOG ====================
+
+    const renderMissingStudentsDialog = () => {
+        if (!selectedClassMissingStudents) return null;
+
+        const { className, students, missingCount } = selectedClassMissingStudents;
+
+        return (
+            <Dialog
+                visible={missingStudentsDialogVisible}
+                onHide={() => {
+                    setMissingStudentsDialogVisible(false);
+                    setSelectedClassMissingStudents(null);
+                }}
+                header={
+                    <div className="flex align-items-center gap-2">
+                        <i className="pi pi-users text-orange-600 text-2xl" />
+                        <div>
+                            <div className="font-semibold">Students Without Billing Records</div>
+                            <div className="text-sm font-normal text-500">{className}</div>
+                        </div>
+                    </div>
+                }
+                style={{ width: '600px', maxWidth: '90vw' }}
+                modal
+            >
+                {/* Summary Banner */}
+                <Card className="mb-3 bg-orange-50 border-2 border-orange-300">
+                    <div className="flex align-items-center justify-content-between">
+                        <div className="flex align-items-center gap-3">
+                            <div className="bg-orange-600 text-white border-circle" style={{ width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span className="text-2xl font-bold">{missingCount}</span>
+                            </div>
+                            <div>
+                                <div className="text-sm text-500">Missing Billing Records</div>
+                                <div className="text-lg font-semibold text-orange-700">{className}</div>
+                            </div>
+                        </div>
+                        <Tag value="Action Required" severity="warning" icon="pi pi-exclamation-triangle" />
+                    </div>
+                </Card>
+
+                {/* Info Message */}
+                <Message
+                    severity="info"
+                    className="mb-3"
+                    content={
+                        <div className="text-sm">
+                            <strong>{`These students don't have billing records for the selected academic period.`}</strong>
+                            <div className="mt-2">Make sure they have correct class assignments and then generate bills.</div>
+                        </div>
+                    }
+                />
+
+                {/* Students List */}
+                <div className="mb-3">
+                    <div className="flex align-items-center gap-2 mb-2">
+                        <i className="pi pi-list" />
+                        <span className="font-semibold">Student Details</span>
+                    </div>
+
+                    <DataTable value={students} size="small" stripedRows paginator={students.length > 10} rows={10} emptyMessage="No students found" className="text-sm">
+                        <Column header="#" body={(data, options) => options.rowIndex + 1} style={{ width: '50px', textAlign: 'center' }} />
+                        <Column
+                            field="name"
+                            header="Student Name"
+                            body={(rowData) => (
+                                <div className="flex align-items-center gap-2">
+                                    <div className="bg-primary text-white border-circle flex align-items-center justify-content-center" style={{ width: '32px', height: '32px', fontSize: '12px', fontWeight: 'bold' }}>
+                                        {rowData.name
+                                            .split(' ')
+                                            .map((n: string) => n[0])
+                                            .join('')
+                                            .substring(0, 2)
+                                            .toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div className="font-semibold">{rowData.name}</div>
+                                        {rowData.studentId && <div className="text-xs text-500">{rowData.studentId}</div>}
+                                    </div>
+                                </div>
+                            )}
+                            style={{ minWidth: '200px' }}
+                        />
+                        <Column field="className" header="Class" body={(rowData) => <Chip label={rowData.className} icon="pi pi-book" className="text-xs" />} />
+                        <Column header="Status" body={() => <Tag value="No Bill" severity="danger" icon="pi pi-times-circle" />} style={{ width: '100px' }} />
+                    </DataTable>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-content-between align-items-center p-3 bg-gray-50 border-round">
+                    <div className="flex align-items-center gap-2 text-sm text-600">
+                        <i className="pi pi-info-circle" />
+                        <span>{`Click "Generate Bills" to create billing records`}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button
+                            label="Close"
+                            icon="pi pi-times"
+                            outlined
+                            size="small"
+                            onClick={() => {
+                                setMissingStudentsDialogVisible(false);
+                                setSelectedClassMissingStudents(null);
+                            }}
+                        />
+                        <Button
+                            label="Generate Bills"
+                            icon="pi pi-cog"
+                            severity="success"
+                            size="small"
+                            onClick={() => {
+                                setMissingStudentsDialogVisible(false);
+                                setSelectedClassMissingStudents(null);
+                                setVerificationDialogVisible(false);
+                                handleGenerateBilling();
+                            }}
+                        />
+                    </div>
+                </div>
+            </Dialog>
+        );
+    };
+
+    // ==================== VERIFICATION DIALOG ====================
+
+    const renderVerificationDialog = () => {
+        if (!verificationData) return null;
+
+        const { summary, classSummaries } = verificationData;
+        const coveragePercent = parseFloat(summary.coveragePercentage);
+        const isCritical = coveragePercent < 80;
+        const isWarning = coveragePercent >= 80 && coveragePercent < 100;
+        const isPerfect = coveragePercent === 100;
+
+        const getSeverity = () => {
+            if (isPerfect) return 'success';
+            if (isCritical) return 'danger';
+            return 'warning';
+        };
+
+        const getIcon = () => {
+            if (isPerfect) return 'pi pi-check-circle';
+            if (isCritical) return 'pi pi-exclamation-triangle';
+            return 'pi pi-info-circle';
+        };
+
+        const getColor = () => {
+            if (isPerfect) return 'text-green-600';
+            if (isCritical) return 'text-red-600';
+            return 'text-orange-600';
+        };
+
+        return (
+            <Dialog
+                visible={verificationDialogVisible}
+                onHide={() => setVerificationDialogVisible(false)}
+                header={
+                    <div className="flex align-items-center gap-2">
+                        <i className={`${getIcon()} ${getColor()} text-2xl`} />
+                        <span>Billing Coverage Verification</span>
+                    </div>
+                }
+                style={{ width: '700px', maxWidth: '90vw' }}
+                modal
+            >
+                {/* Summary Card */}
+                <Card className={`mb-3 border-2 ${isPerfect ? 'border-green-300 bg-green-50' : isCritical ? 'border-red-300 bg-red-50' : 'border-orange-300 bg-orange-50'}`}>
+                    <div className="grid">
+                        <div className="col-12 md:col-4 text-center">
+                            <div className="text-500 text-sm mb-1">Total Students</div>
+                            <div className="text-3xl font-bold">{summary.totalStudents}</div>
+                        </div>
+                        <div className="col-12 md:col-4 text-center">
+                            <div className="text-500 text-sm mb-1">With Billing</div>
+                            <div className="text-3xl font-bold text-green-600">{summary.studentsWithBilling}</div>
+                        </div>
+                        <div className="col-12 md:col-4 text-center">
+                            <div className="text-500 text-sm mb-1">Missing Bills</div>
+                            <div className={`text-3xl font-bold ${summary.studentsWithoutBilling === 0 ? 'text-green-600' : 'text-red-600'}`}>{summary.studentsWithoutBilling}</div>
+                        </div>
+                    </div>
+
+                    <Divider />
+
+                    <div className="text-center">
+                        <div className="text-sm text-500 mb-2">Coverage Status</div>
+                        <ProgressBar value={coveragePercent} showValue={false} color={isPerfect ? '#22c55e' : isCritical ? '#ef4444' : '#f97316'} className="mb-2" />
+                        <div className={`text-4xl font-bold ${getColor()}`}>{coveragePercent.toFixed(1)}%</div>
+                        <div className="mt-2">
+                            {isPerfect && <Tag value="Perfect Coverage" severity="success" icon="pi pi-check" className="text-sm" />}
+                            {isWarning && <Tag value="Action Required" severity="warning" icon="pi pi-exclamation-triangle" className="text-sm" />}
+                            {isCritical && <Tag value="Critical - Urgent Action Needed" severity="danger" icon="pi pi-times-circle" className="text-sm" />}
+                        </div>
+                    </div>
+                </Card>
+
+                {/* Class Breakdown */}
+                {classSummaries && classSummaries.length > 0 && (
+                    <div className="mt-3">
+                        <div className="flex align-items-center gap-2 mb-3">
+                            <i className="pi pi-list text-xl" />
+                            <span className="font-semibold text-lg">Class Breakdown</span>
+                        </div>
+
+                        <DataTable value={classSummaries} size="small" stripedRows className="text-sm">
+                            <Column field="className" header="Class" style={{ fontWeight: 600 }} />
+                            <Column
+                                header="Status"
+                                body={(rowData) => {
+                                    if (rowData.missingCount === 0) {
+                                        return <Tag value="Complete" severity="success" icon="pi pi-check" />;
+                                    } else if (rowData.missingCount <= 2) {
+                                        return <Tag value="Minor Issues" severity="warning" icon="pi pi-exclamation-circle" />;
+                                    } else {
+                                        return <Tag value="Attention Needed" severity="danger" icon="pi pi-times" />;
+                                    }
+                                }}
+                                style={{ width: '150px' }}
+                            />
+                            <Column
+                                field="missingCount"
+                                header="Missing"
+                                body={(rowData) => <span className={`font-semibold ${rowData.missingCount === 0 ? 'text-green-600' : 'text-red-600'}`}>{rowData.missingCount}</span>}
+                                style={{ textAlign: 'center', width: '100px' }}
+                            />
+                            <Column
+                                header="Students"
+                                body={(rowData) => {
+                                    if (rowData.missingCount > 0 && rowData.students) {
+                                        return (
+                                            <Button
+                                                label="View List"
+                                                icon="pi pi-eye"
+                                                size="small"
+                                                text
+                                                onClick={() => {
+                                                    setSelectedClassMissingStudents(rowData);
+                                                    setMissingStudentsDialogVisible(true);
+                                                }}
+                                            />
+                                        );
+                                    }
+                                    return <span className="text-500">-</span>;
+                                }}
+                                style={{ width: '120px' }}
+                            />
+                        </DataTable>
+                    </div>
+                )}
+
+                {/* Action Message */}
+                {summary.studentsWithoutBilling > 0 && (
+                    <Message
+                        severity="warn"
+                        className="mt-3"
+                        content={
+                            <div>
+                                <div className="font-semibold mb-2">Recommended Actions:</div>
+                                <ul className="pl-3 m-0">
+                                    <li>Verify students have correct class assignments</li>
+                                    <li>Ensure fee configurations exist for all classes</li>
+                                    <li>Click {`"Generate Bills"`} to create missing billing records</li>
+                                    <li>Re-run verification to confirm 100% coverage</li>
+                                </ul>
+                            </div>
+                        }
+                    />
+                )}
+
+                {isPerfect && (
+                    <Message
+                        severity="success"
+                        className="mt-3"
+                        content={
+                            <div className="flex align-items-center gap-2">
+                                <i className="pi pi-check-circle text-2xl" />
+                                <div>
+                                    <div className="font-semibold">Excellent!</div>
+                                    <div>All students have billing records for this period.</div>
+                                </div>
+                            </div>
+                        }
+                    />
+                )}
+
+                <div className="flex justify-content-end gap-2 mt-4">
+                    <Button label="Close" icon="pi pi-times" outlined onClick={() => setVerificationDialogVisible(false)} />
+                    {summary.studentsWithoutBilling > 0 && (
+                        <Button
+                            label="Generate Bills"
+                            icon="pi pi-cog"
+                            severity="success"
+                            onClick={() => {
+                                setVerificationDialogVisible(false);
+                                handleGenerateBilling();
+                            }}
+                        />
+                    )}
+                </div>
+            </Dialog>
+        );
+    };
+
     // ==================== CHARGE DIALOG ====================
 
     const renderChargeDialog = () => {
@@ -859,6 +1519,9 @@ const StudentBillingManagement: React.FC = () => {
             </Card>
 
             {/* Dialogs */}
+            {renderGenerationResultsDialog()}
+            {renderMissingStudentsDialog()}
+            {renderVerificationDialog()}
             {renderViewDialog()}
             {renderChargeDialog()}
         </div>

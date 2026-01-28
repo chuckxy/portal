@@ -123,8 +123,10 @@ export const FinancialControllerDashboard: React.FC = () => {
     }, [user]);
 
     useEffect(() => {
-        fetchFinancialData();
-    }, [filters, periodView]);
+        if (filters.site || user?.schoolSite) {
+            fetchFinancialData();
+        }
+    }, [filters.site, filters.academicYear, filters.dateFrom, filters.dateTo, periodView]);
 
     const fetchSites = async () => {
         try {

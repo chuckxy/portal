@@ -57,15 +57,19 @@ export async function GET(request: NextRequest) {
         if (dateFrom) startDate = new Date(dateFrom);
         if (dateTo) endDate = new Date(dateTo);
 
-        // Build base query
-        const baseQuery: any = {};
-        if (site) baseQuery.site = site;
+        // Build base queries for different models
+        const siteQuery: any = {}; // For FeesPayment, DailyFeeCollection, Expenditure
+        const schoolSiteQuery: any = {}; // For StudentBilling
+        if (site) {
+            siteQuery.site = site;
+            schoolSiteQuery.schoolSite = site;
+        }
 
         // INCOME CALCULATIONS
 
         // 1. Fee Payments
         const feePaymentsQuery = {
-            ...baseQuery,
+            ...siteQuery,
             academicYear: effectiveAcademicYear,
             status: { $ne: 'failed' },
             datePaid: { $gte: startDate, $lte: endDate }
@@ -94,7 +98,7 @@ export async function GET(request: NextRequest) {
 
         // 3. Daily Collections
         const dailyCollectionsQuery = {
-            ...baseQuery,
+            ...siteQuery,
             collectionDate: { $gte: startDate, $lte: endDate }
         };
 
@@ -107,7 +111,7 @@ export async function GET(request: NextRequest) {
 
         // 4. Scholarships
         const scholarshipsQuery = {
-            ...baseQuery,
+            ...schoolSiteQuery,
             academicYear: effectiveAcademicYear,
             status: 'active'
         };
@@ -122,7 +126,7 @@ export async function GET(request: NextRequest) {
 
         // Expenditures
         const expendituresQuery = {
-            ...baseQuery,
+            ...siteQuery,
             expenditureDate: { $gte: startDate, $lte: endDate }
         };
 
@@ -135,12 +139,14 @@ export async function GET(request: NextRequest) {
         const approvedExpenditures = expenditures.filter((e) => e.status === 'approved').reduce((sum, e) => sum + e.amount, 0);
 
         // RECEIVABLES - Source from StudentBilling collection (single source of truth)
+        // Note: Outstanding receivables should include ALL periods with unpaid balances
 
         const billingQuery: any = {
-            academicYear: effectiveAcademicYear,
-            isCurrent: true
+            currentBalance: { $gt: 0 } // Only get records with outstanding balance
         };
         if (site) billingQuery.schoolSite = site;
+        // Optionally filter by academic year if specified
+        if (academicYear) billingQuery.academicYear = effectiveAcademicYear;
 
         // Aggregate outstanding receivables from StudentBilling
         const billingAggregation = await StudentBilling.aggregate([
@@ -219,14 +225,14 @@ export async function GET(request: NextRequest) {
         prevEndDate.setTime(prevEndDate.getTime() - periodDiff);
 
         const prevPayments = await FeesPayment.find({
-            ...baseQuery,
+            ...siteQuery,
             datePaid: { $gte: prevStartDate, $lte: prevEndDate },
             status: { $ne: 'failed' }
         }).lean();
         const prevIncome = prevPayments.reduce((sum, p) => sum + p.amountPaid, 0);
 
         const prevExpenditures = await Expenditure.find({
-            ...baseQuery,
+            ...siteQuery,
             expenditureDate: { $gte: prevStartDate, $lte: prevEndDate },
             status: 'paid'
         }).lean();
@@ -268,13 +274,13 @@ export async function GET(request: NextRequest) {
             }
 
             const pointPayments = await FeesPayment.find({
-                ...baseQuery,
+                ...siteQuery,
                 datePaid: { $gte: pointStart, $lte: pointEnd },
                 status: { $ne: 'failed' }
             }).lean();
 
             const pointExpenditures = await Expenditure.find({
-                ...baseQuery,
+                ...siteQuery,
                 expenditureDate: { $gte: pointStart, $lte: pointEnd },
                 status: 'paid'
             }).lean();

@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
         const minBalance = searchParams.get('minBalance');
         const search = searchParams.get('search');
         const page = parseInt(searchParams.get('page') || '0');
-        const limit = parseInt(searchParams.get('limit') || '10');
+        const limit = parseInt(searchParams.get('limit') || '1000'); // Default to large limit to get all debtors
 
         // Build query for students - only get active students with a current class
         const studentQuery: any = {
