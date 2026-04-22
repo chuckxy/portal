@@ -916,8 +916,8 @@ const PersonManagement: React.FC = () => {
                     ref={printComponentRef}
                     persons={persons}
                     schoolName={schoolData?.name || 'School Name'}
-                    schoolAddress={siteData?.address || schoolData?.address || ''}
-                    schoolContact={schoolData?.contact || ''}
+                    schoolAddress={[siteData?.address?.street, siteData?.address?.town, siteData?.address?.mmda].filter(Boolean).join(', ') || ''}
+                    schoolContact={siteData?.phone || siteData?.email || ''}
                     schoolLogo={schoolData?.logo || ''}
                     siteName={siteData?.siteName || siteData?.name || ''}
                     generatedBy={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.username || 'User'}
